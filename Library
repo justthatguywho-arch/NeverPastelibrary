@@ -1466,33 +1466,6 @@ function Library:CreateWindow(options)
 		ZIndex = 3,
 	}, window.header)
 
-	-- Scrolling topographic backdrop, clipped to the title box. Roblox can't
-	-- mask an image INSIDE glyphs, so the standard fake is used: the pattern
-	-- scrolls behind semi-transparent text — the lines shimmer through the
-	-- letter fill. Swap TITLE_TEXTURE_ID for an uploaded seamless topo tile.
-	local TITLE_TEXTURE_ID = "rbxassetid://8992230677"
-	local TITLE_TILE = 96
-	local title_fx = create("Frame", {
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Position = UDim2.fromOffset(10, 0),
-		Size = UDim2.fromOffset(130, 40),
-		ZIndex = 4,
-	}, window.header)
-	-- 2 tiles wide and slid left→right, snapping back one tile width — reads
-	-- as an endless rightward drift
-	local title_topo = create("ImageLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(-TITLE_TILE, 0),
-		Size = UDim2.new(1, TITLE_TILE * 2, 1, 0),
-		Image = TITLE_TEXTURE_ID,
-		ImageColor3 = rgb(196, 150, 255),
-		ImageTransparency = 0.45,
-		ScaleType = Enum.ScaleType.Tile,
-		TileSize = UDim2.fromOffset(TITLE_TILE, TITLE_TILE),
-		ZIndex = 4,
-	}, title_fx)
-
 	window.title = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(10, 0),
@@ -1502,7 +1475,6 @@ function Library:CreateWindow(options)
 		TextSize = 21,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = rgb(255, 255, 255),
-		TextTransparency = 0.22, -- lets the scrolling topo lines show inside the glyph fill
 		ZIndex = 5,
 	}, window.header)
 	-- Periodic palette (violet at both ends) so the moving gradient wraps
@@ -1520,13 +1492,10 @@ function Library:CreateWindow(options)
 
 	-- Wave motion: gradient offset climbs continuously (wraps every 1.0 — the
 	-- palette is periodic so the seam is invisible); the white crest keeps
-	-- sweeping rightward forever instead of ping-ponging. Topo layer drifts
-	-- right at its own pace; neon breathes.
+	-- sweeping rightward forever instead of ping-ponging. Neon breathes.
 	insert(window._renderstep_hooks, function()
 		local t = os.clock()
 		title_gradient.Offset = Vector2.new((t * 0.22) % 1 - 0.5, 0)
-		local drift = (t * 14) % TITLE_TILE
-		title_topo.Position = UDim2.fromOffset(-TITLE_TILE + drift, 0)
 		title_neon.TextTransparency = 0.5 + math.sin(t * 1.6) * 0.12
 	end)
 
