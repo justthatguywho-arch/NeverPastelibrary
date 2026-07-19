@@ -3579,18 +3579,21 @@ function Library:CreateWindow(options)
 		if glass.Parent ~= cam then glass.Parent = cam end
 		local dof = kbl_ensure_dof()
 
-		-- Project the panel rect onto a plane DIST studs in front of the camera
+		-- Project the panel rect onto a plane DIST studs in front of the camera.
+		-- ScreenPointToRay (NOT ViewportPointToRay): AbsolutePosition lives in
+		-- inset-relative screen space, and only ScreenPointToRay matches it —
+		-- with ViewportPointToRay the blur rect sat one topbar-height too high.
 		local DIST = 0.5
 		local pos = kbl_frame.AbsolutePosition
 		local size = kbl_frame.AbsoluteSize
 		if size.X < 2 or size.Y < 2 then return end
 		local cx = pos.X + size.X * 0.5
 		local cy = pos.Y + size.Y * 0.5
-		local ray_c = cam:ViewportPointToRay(cx, cy, DIST)
-		local ray_r = cam:ViewportPointToRay(pos.X + size.X, cy, DIST)
-		local ray_l = cam:ViewportPointToRay(pos.X, cy, DIST)
-		local ray_t = cam:ViewportPointToRay(cx, pos.Y, DIST)
-		local ray_b = cam:ViewportPointToRay(cx, pos.Y + size.Y, DIST)
+		local ray_c = cam:ScreenPointToRay(cx, cy, DIST)
+		local ray_r = cam:ScreenPointToRay(pos.X + size.X, cy, DIST)
+		local ray_l = cam:ScreenPointToRay(pos.X, cy, DIST)
+		local ray_t = cam:ScreenPointToRay(cx, pos.Y, DIST)
+		local ray_b = cam:ScreenPointToRay(cx, pos.Y + size.Y, DIST)
 		local w = (ray_r.Origin - ray_l.Origin).Magnitude
 		local h = (ray_t.Origin - ray_b.Origin).Magnitude
 
