@@ -1464,11 +1464,14 @@ function Library:CreateWindow(options)
 		ZIndex = 4,
 	}, window.header)
 	create("UIGradient", {
-		Rotation = 65,
+		-- Yin-yang diagonal: white owns the top-left half, violet owns the
+		-- bottom-right half, meeting in a short blend across the middle
+		Rotation = 35,
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.55, rgb(214, 178, 255)),
-			ColorSequenceKeypoint.new(1, rgb(150, 92, 255)),
+			ColorSequenceKeypoint.new(0.42, rgb(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.58, rgb(178, 122, 255)),
+			ColorSequenceKeypoint.new(1, rgb(132, 72, 240)),
 		}),
 	}, window.title)
 
