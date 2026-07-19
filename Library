@@ -1477,25 +1477,44 @@ function Library:CreateWindow(options)
 		TextColor3 = rgb(255, 255, 255),
 		ZIndex = 5,
 	}, window.header)
-	-- Periodic palette (violet at both ends) so the moving gradient wraps
-	-- seamlessly: a white crest ~20% wide rides an 80% lilac/violet body
+	-- Wave gradient: Roblox clamps gradient sampling outside [0,1], so sliding
+	-- Offset can never loop seamlessly (the crest pops at the edges — that was
+	-- the "O turns white" jump). Instead the palette itself is rebuilt each
+	-- frame with the crest at a wrapped position: circular distance means the
+	-- crest fades out on the right WHILE fading in on the left.
 	local title_gradient = create("UIGradient", {
 		Rotation = 0,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, rgb(140, 78, 244)),
-			ColorSequenceKeypoint.new(0.38, rgb(186, 132, 255)),
-			ColorSequenceKeypoint.new(0.5, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.62, rgb(186, 132, 255)),
-			ColorSequenceKeypoint.new(1, rgb(140, 78, 244)),
-		}),
 	}, window.title)
 
-	-- Wave motion: gradient offset climbs continuously (wraps every 1.0 — the
-	-- palette is periodic so the seam is invisible); the white crest keeps
-	-- sweeping rightward forever instead of ping-ponging. Neon breathes.
+	local TITLE_WAVE_BASE = rgb(150, 88, 246)   -- violet body (80%)
+	local TITLE_WAVE_LILAC = rgb(196, 148, 255) -- shoulder tint
+	local TITLE_WAVE_WHITE = rgb(255, 255, 255) -- crest (20%)
+	local TITLE_WAVE_KEYPOINTS = 14
+	local TITLE_WAVE_WIDTH = 0.16 -- half-width of the crest in gradient space
+
+	local function title_wave_color(dist)
+		-- dist: circular distance from crest center, 0..0.5
+		local a = clamp(1 - dist / TITLE_WAVE_WIDTH, 0, 1)
+		a = a * a * (3 - 2 * a) -- smoothstep: soft entry/exit, no hard edge
+		-- blend base→lilac on the shoulders, lilac→white at the peak
+		if a < 0.5 then
+			return TITLE_WAVE_BASE:Lerp(TITLE_WAVE_LILAC, a * 2)
+		end
+		return TITLE_WAVE_LILAC:Lerp(TITLE_WAVE_WHITE, (a - 0.5) * 2)
+	end
+
+	local title_wave_step = 1 / (TITLE_WAVE_KEYPOINTS - 1)
+
 	insert(window._renderstep_hooks, function()
 		local t = os.clock()
-		title_gradient.Offset = Vector2.new((t * 0.22) % 1 - 0.5, 0)
+		local crest = (t * 0.14) % 1 -- rightward, ~7s per sweep
+		local keypoints = {}
+		for i = 0, TITLE_WAVE_KEYPOINTS - 1 do
+			local pos = i * title_wave_step
+			local dist = math.abs(((pos - crest + 0.5) % 1) - 0.5)
+			keypoints[i + 1] = ColorSequenceKeypoint.new(pos, title_wave_color(dist))
+		end
+		title_gradient.Color = ColorSequence.new(keypoints)
 		title_neon.TextTransparency = 0.5 + math.sin(t * 1.6) * 0.12
 	end)
 
