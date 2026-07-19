@@ -3465,12 +3465,16 @@ function Library:CreateWindow(options)
 	round_ui(kbl_frame, 6)
 	stroke(kbl_frame, rgb(255, 255, 255), 0.82, 1) -- thin light edge, iOS glass rim
 
-	-- ===== iOS frosted-glass backdrop =====
-	-- A real blur behind UI: a thin Glass part floated just in front of the
-	-- camera, sized/positioned every frame to sit exactly under the panel
-	-- rect. Glass material refracts/blurs the 3D world behind it. Purely
-	-- visual, parented to the camera, never collidable.
+	-- ===== iOS frosted-glass backdrop (acrylic technique) =====
+	-- Plain Glass barely blurs. The trick (used by Acrylic/Fluent UIs): a
+	-- near-invisible Glass part (Transparency 0.98) still WRITES DEPTH, so
+	-- pixels behind it get depth ~= the glass distance (0.5 studs). A
+	-- DepthOfFieldEffect tuned to blur only near-camera depths then blurs
+	-- exactly the region covered by the glass — the rest of the scene sits
+	-- inside the in-focus window and stays sharp. Requires graphics quality
+	-- ~8+; below that Roblox skips glass depth-write and you get plain tint.
 	local kbl_glass = nil
+	local kbl_dof = nil
 	local function kbl_ensure_glass()
 		if kbl_glass and kbl_glass.Parent then return kbl_glass end
 		local ok, part = pcall(function()
@@ -3482,8 +3486,8 @@ function Library:CreateWindow(options)
 			p.CanTouch = false
 			p.CastShadow = false
 			p.Material = Enum.Material.Glass
-			p.Color = Color3.fromRGB(12, 10, 16)
-			p.Transparency = 0.45
+			p.Color = Color3.fromRGB(0, 0, 0)
+			p.Transparency = 0.98
 			p.Reflectance = 0
 			p.Size = Vector3.new(0.1, 0.1, 0.01)
 			return p
@@ -3493,10 +3497,31 @@ function Library:CreateWindow(options)
 		return part
 	end
 
+	local function kbl_ensure_dof()
+		if kbl_dof and kbl_dof.Parent then return kbl_dof end
+		local ok, effect = pcall(function()
+			local e = Instance.new("DepthOfFieldEffect")
+			e.Name = "np_kbl_acrylic"
+			e.FarIntensity = 0
+			e.FocusDistance = 51.6
+			e.InFocusRadius = 50
+			e.NearIntensity = 0
+			e.Parent = game:GetService("Lighting")
+			return e
+		end)
+		if not ok then return nil end
+		kbl_dof = effect
+		return effect
+	end
+
 	local function kbl_destroy_glass()
 		if kbl_glass then
 			pcall(function() kbl_glass:Destroy() end)
 			kbl_glass = nil
+		end
+		if kbl_dof then
+			pcall(function() kbl_dof:Destroy() end)
+			kbl_dof = nil
 		end
 	end
 	window._kbl_destroy_glass = kbl_destroy_glass
@@ -3523,6 +3548,7 @@ function Library:CreateWindow(options)
 		local glass = kbl_ensure_glass()
 		if not glass then return end
 		if glass.Parent ~= cam then glass.Parent = cam end
+		local dof = kbl_ensure_dof()
 
 		-- Project the panel rect onto a plane DIST studs in front of the camera
 		local DIST = 0.5
@@ -3541,7 +3567,9 @@ function Library:CreateWindow(options)
 
 		glass.CFrame = CFrame.lookAt(ray_c.Origin, ray_c.Origin + cam.CFrame.LookVector)
 		glass.Size = Vector3.new(w, h, 0.01)
-		glass.Transparency = 0.45 + (1 - kbl_glass_alpha) * 0.55
+		if dof then
+			dof.NearIntensity = kbl_glass_alpha
+		end
 	end)
 
 	local kbl_title = create("TextLabel", {
