@@ -3465,6 +3465,22 @@ function Library:CreateWindow(options)
 	round_ui(kbl_frame, 6)
 	stroke(kbl_frame, rgb(255, 255, 255), 0.82, 1) -- thin light edge, iOS glass rim
 
+	-- Soft outer glow: sits OUTSIDE the CanvasGroup (clipping would cut it),
+	-- tracked to the panel rect in the renderstep hook below
+	local KBL_GLOW_PAD = 22
+	local KBL_GLOW_MIN_T = 0.6 -- transparency at full visibility
+	local kbl_glow = create("ImageLabel", {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Image = _icons.shadow,
+		ImageColor3 = KBL_ACCENT,
+		ImageTransparency = 1,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(49, 49, 450, 450),
+		Visible = false,
+		ZIndex = 1,
+	}, kbl_gui)
+
 	-- ===== iOS frosted-glass backdrop (acrylic technique) =====
 	-- Plain Glass barely blurs. The trick (used by Acrylic/Fluent UIs): a
 	-- near-invisible Glass part (Transparency 0.98) still WRITES DEPTH, so
@@ -3538,6 +3554,19 @@ function Library:CreateWindow(options)
 		elseif kbl_glass_alpha > target then
 			kbl_glass_alpha = math.max(0, kbl_glass_alpha - step)
 		end
+
+		-- Outer glow follows the panel rect and fades with the panel
+		if kbl_glass_alpha <= 0.01 then
+			kbl_glow.Visible = false
+		else
+			local pos = kbl_frame.AbsolutePosition
+			local size = kbl_frame.AbsoluteSize
+			kbl_glow.Visible = true
+			kbl_glow.Position = UDim2.fromOffset(pos.X - KBL_GLOW_PAD, pos.Y - KBL_GLOW_PAD)
+			kbl_glow.Size = UDim2.fromOffset(size.X + KBL_GLOW_PAD * 2, size.Y + KBL_GLOW_PAD * 2)
+			kbl_glow.ImageTransparency = 1 - (1 - KBL_GLOW_MIN_T) * kbl_glass_alpha
+		end
+
 		if kbl_glass_alpha <= 0.01 then
 			kbl_destroy_glass()
 			return
