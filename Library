@@ -174,6 +174,17 @@ local function resolve_icon(name)
 	return _lucide[name] or _lucide[string.lower(name)] or _icons[name] or _icons[string.lower(name)]
 end
 
+local function keybind_full_name(token)
+	if token == Enum.UserInputType.MouseButton1 then return "M1" end
+	if token == Enum.UserInputType.MouseButton2 then return "M2" end
+	if token == Enum.UserInputType.MouseButton3 then return "M3" end
+	if typeof(token) == "EnumItem" then
+		-- "LeftShift" -> "Left Shift", "CapsLock" -> "Caps Lock"
+		return (string.gsub(token.Name, "(%l)(%u)", "%1 %2"))
+	end
+	return tostring(token)
+end
+
 local Window = {}
 Window.__index = Window
 
@@ -3223,61 +3234,118 @@ function Library:CreateWindow(options)
 	local wm_fps_value = 0
 	local wm_fps_timer = 0
 
+	-- Purple palette per reference mock (hardcoded, independent of theme accent)
+	local WM_PANEL = rgb(24, 16, 34)
+	local WM_CHIP = rgb(14, 9, 21)
+	local WM_STROKE = rgb(126, 87, 194)
+	local WM_TEXT = rgb(240, 236, 250)
+	local WM_GREEN = rgb(87, 217, 130)
+
 	local wm_frame = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 12),
-		Size = UDim2.fromOffset(200, 24),
-		BackgroundColor3 = self.theme.bg,
+		Size = UDim2.fromOffset(0, 46),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = WM_PANEL,
+		BackgroundTransparency = 0.04,
 		BorderSizePixel = 0,
 		Visible = false,
 		ZIndex = 2,
 	}, wm_gui)
-	round_ui(wm_frame, 4)
-	stroke(wm_frame, self.theme.line, 0, 1)
+	round_ui(wm_frame, 10)
+	stroke(wm_frame, WM_STROKE, 0.35, 1)
 
-	local wm_accent_bar = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 2),
-		BackgroundColor3 = self.theme.accent,
-		BorderSizePixel = 0,
-		ZIndex = 3,
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 10),
 	}, wm_frame)
-	round_ui(wm_accent_bar, 1)
+	create("UIPadding", {
+		PaddingLeft = UDim.new(0, 14),
+		PaddingRight = UDim.new(0, 14),
+	}, wm_frame)
 
 	local wm_brand = create("TextLabel", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 8, 0.5, 1),
-		Size = UDim2.fromOffset(0, 14),
+		Size = UDim2.fromOffset(0, 46),
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Font = Enum.Font.GothamBold,
-		Text = "NeverPaste",
+		Font = Enum.Font.GothamBlack,
+		Text = "OXY",
 		TextColor3 = rgb(255, 255, 255),
-		TextSize = 11,
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 30,
+		LayoutOrder = 1,
 		ZIndex = 5,
 	}, wm_frame)
 	create("UIGradient", {
-		Rotation = 90,
+		Rotation = 65,
 		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, self.theme.accent),
-			ColorSequenceKeypoint.new(1, rgb(170, 102, 255)),
+			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.55, rgb(214, 178, 255)),
+			ColorSequenceKeypoint.new(1, rgb(150, 92, 255)),
 		}),
 	}, wm_brand)
 
-	local wm_label = create("TextLabel", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 8, 0.5, 1),
-		Size = UDim2.new(1, -16, 1, -6),
-		BackgroundTransparency = 1,
+	create("Frame", {
+		Size = UDim2.fromOffset(1, 26),
+		BackgroundColor3 = WM_STROKE,
+		BackgroundTransparency = 0.35,
 		BorderSizePixel = 0,
-		Font = Enum.Font.GothamSemibold,
-		Text = "",
-		TextSize = 11,
-		TextColor3 = self.theme.text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 4,
+		LayoutOrder = 2,
+		ZIndex = 5,
 	}, wm_frame)
+
+	local function wm_make_chip(order, icon_name, text_color)
+		local chip = create("Frame", {
+			Size = UDim2.fromOffset(0, 30),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundColor3 = WM_CHIP,
+			BackgroundTransparency = 0.08,
+			BorderSizePixel = 0,
+			LayoutOrder = order,
+			Visible = false,
+			ZIndex = 4,
+		}, wm_frame)
+		round_ui(chip, 8)
+
+		local text_x = 10
+		local icon_id = resolve_icon(icon_name)
+		if icon_id then
+			create("ImageLabel", {
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, 9, 0.5, 0),
+				Size = UDim2.fromOffset(15, 15),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Image = icon_id,
+				ImageColor3 = WM_TEXT,
+				ZIndex = 5,
+			}, chip)
+			text_x = 30
+		end
+
+		local label = create("TextLabel", {
+			Position = UDim2.fromOffset(text_x, 0),
+			Size = UDim2.new(0, 0, 1, 0),
+			AutomaticSize = Enum.AutomaticSize.X,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Font = Enum.Font.GothamSemibold,
+			Text = "",
+			TextColor3 = text_color or WM_TEXT,
+			TextSize = 13,
+			ZIndex = 5,
+		}, chip)
+		create("UIPadding", { PaddingRight = UDim.new(0, 10) }, chip)
+		return chip, label
+	end
+
+	local wm_chip_nick, wm_label_nick = wm_make_chip(3, "user")
+	local wm_chip_fps, wm_label_fps = wm_make_chip(4, nil, WM_GREEN)
+	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil)
+	local wm_chip_place, wm_label_place = wm_make_chip(6, "compass")
+	local wm_chip_time, wm_label_time = wm_make_chip(7, nil)
 
 	wm_refresh_position = function()
 		if wm_position == "TopLeft" then
@@ -3292,14 +3360,26 @@ function Library:CreateWindow(options)
 	local wm_cached_place_name = nil
 
 	local function wm_refresh_text()
-		local brand_text = "NeverPaste"
-		local brand_width = text_service:GetTextSize(brand_text, 11, Enum.Font.GothamBold, vec2(9999, 24)).X
-		wm_brand.Text = brand_text
-
-		local parts = {}
+		wm_chip_nick.Visible = wm_show.Nickname == true
 		if wm_show.Nickname then
-			insert(parts, tostring(lp and lp.DisplayName or "Player"))
+			wm_label_nick.Text = tostring(lp and lp.DisplayName or "Player")
 		end
+
+		wm_chip_fps.Visible = wm_show.FPS == true
+		if wm_show.FPS then
+			wm_label_fps.Text = tostring(wm_fps_value) .. " FPS ↑"
+		end
+
+		wm_chip_ping.Visible = wm_show.Ping == true
+		if wm_show.Ping then
+			local ping = 0
+			pcall(function()
+				ping = round(stats_service.Network.ServerStatsItem["Data Ping"]:GetValue())
+			end)
+			wm_label_ping.Text = tostring(ping) .. " ms"
+		end
+
+		wm_chip_place.Visible = wm_show.Place == true
 		if wm_show.Place then
 			if not wm_cached_place_name then
 				wm_cached_place_name = "Unknown"
@@ -3308,31 +3388,13 @@ function Library:CreateWindow(options)
 					if info and info.Name then wm_cached_place_name = info.Name end
 				end)
 			end
-			insert(parts, wm_cached_place_name)
+			wm_label_place.Text = wm_cached_place_name
 		end
-		if wm_show.FPS then
-			insert(parts, tostring(wm_fps_value) .. " fps")
-		end
-		if wm_show.Ping then
-			local ping = 0
-			pcall(function()
-				ping = round(stats_service.Network.ServerStatsItem["Data Ping"]:GetValue())
-			end)
-			insert(parts, tostring(ping) .. " ms")
-		end
-		if wm_show.Time then
-			insert(parts, os.date("%H:%M:%S"))
-		end
-		local info_text = concat(parts, " | ")
-		local separator = #parts > 0 and " | " or ""
-		wm_label.Text = info_text
 
-		local info_width = #info_text > 0 and text_service:GetTextSize(info_text, 11, Enum.Font.GothamSemibold, vec2(9999, 24)).X or 0
-		local sep_width = #separator > 0 and text_service:GetTextSize(separator, 11, Enum.Font.GothamSemibold, vec2(9999, 24)).X or 0
-		local total_width = brand_width + sep_width + info_width + 20
-		wm_brand.Position = UDim2.new(0, 8, 0.5, 1)
-		wm_label.Position = UDim2.new(0, 8 + brand_width + sep_width, 0.5, 1)
-		wm_frame.Size = UDim2.fromOffset(total_width, 24)
+		wm_chip_time.Visible = wm_show.Time == true
+		if wm_show.Time then
+			wm_label_time.Text = os.date("%H:%M:%S")
+		end
 	end
 
 	insert(window._heartbeat_hooks, function(dt)
@@ -3368,43 +3430,58 @@ function Library:CreateWindow(options)
 	window._active_binds = {}
 	window._kbl_rows = {}
 
+	-- Same purple palette as the watermark (reference mock)
+	local KBL_PANEL = rgb(24, 16, 34)
+	local KBL_CHIP = rgb(14, 9, 21)
+	local KBL_STROKE = rgb(126, 87, 194)
+	local KBL_TEXT = rgb(240, 236, 250)
+	local KBL_ACTIVE = rgb(126, 87, 194)
+	local KBL_TITLE = rgb(206, 178, 255)
+	local KBL_W = 250
+	local KBL_HEADER_H = 40
+	local KBL_ROW_H = 30
+	local KBL_ROW_PAD = 8
+
 	local kbl_frame = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 48),
-		Size = UDim2.fromOffset(180, 26),
-		BackgroundColor3 = self.theme.bg,
+		Position = UDim2.new(1, -12, 0, 70),
+		Size = UDim2.fromOffset(KBL_W, KBL_HEADER_H),
+		BackgroundColor3 = KBL_PANEL,
+		BackgroundTransparency = 0.04,
 		BorderSizePixel = 0,
 		Visible = false,
 		ClipsDescendants = true,
 		ZIndex = 2,
 	}, kbl_gui)
-	round_ui(kbl_frame, 4)
-	stroke(kbl_frame, self.theme.line, 0, 1)
+	round_ui(kbl_frame, 10)
+	stroke(kbl_frame, KBL_STROKE, 0.35, 1)
 
-	local kbl_accent_bar = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 2),
-		BackgroundColor3 = self.theme.accent,
-		BorderSizePixel = 0,
-		ZIndex = 3,
-	}, kbl_frame)
-	round_ui(kbl_accent_bar, 1)
-
-	local kbl_title = create("TextLabel", {
-		Position = UDim2.fromOffset(8, 4),
-		Size = UDim2.new(1, -16, 0, 20),
+	local kbl_title_icon = create("ImageLabel", {
+		Position = UDim2.fromOffset(12, 11),
+		Size = UDim2.fromOffset(18, 18),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Font = Enum.Font.GothamSemibold,
-		Text = "Keybinds",
-		TextSize = 11,
-		TextColor3 = self.theme.text,
+		Image = resolve_icon("terminal") or "",
+		ImageColor3 = KBL_TITLE,
+		ZIndex = 4,
+	}, kbl_frame)
+
+	local kbl_title = create("TextLabel", {
+		Position = UDim2.fromOffset(38, 0),
+		Size = UDim2.new(1, -46, 0, KBL_HEADER_H),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamBold,
+		Text = "KEYBINDS",
+		TextSize = 15,
+		TextColor3 = KBL_TITLE,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 4,
 	}, kbl_frame)
 
 	local kbl_body = create("Frame", {
-		Position = UDim2.fromOffset(0, 26),
-		Size = UDim2.new(1, 0, 0, 0),
+		Position = UDim2.fromOffset(10, KBL_HEADER_H),
+		Size = UDim2.new(1, -20, 0, 0),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 3,
@@ -3412,7 +3489,7 @@ function Library:CreateWindow(options)
 
 	local kbl_layout = create("UIListLayout", {
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 0),
+		Padding = UDim.new(0, KBL_ROW_PAD),
 	}, kbl_body)
 
 	-- Drag support for keybind list
@@ -3454,65 +3531,87 @@ function Library:CreateWindow(options)
 		for _, entry in ipairs(active) do
 			count = count + 1
 			local row = create("Frame", {
-				Size = UDim2.new(1, 0, 0, 20),
-				BackgroundColor3 = count % 2 == 0 and self.theme.panel_soft or self.theme.bg,
-				BackgroundTransparency = 0,
+				Size = UDim2.new(1, 0, 0, KBL_ROW_H),
+				BackgroundColor3 = KBL_CHIP,
+				BackgroundTransparency = 0.08,
 				BorderSizePixel = 0,
 				LayoutOrder = count,
 				ZIndex = 4,
 			}, kbl_body)
+			round_ui(row, 8)
 
 			local name_label = create("TextLabel", {
-				Position = UDim2.fromOffset(8, 0),
-				Size = UDim2.new(0.6, -8, 1, 0),
+				Position = UDim2.fromOffset(10, 0),
+				Size = UDim2.new(0.55, -10, 1, 0),
 				BackgroundTransparency = 1,
 				Font = Enum.Font.GothamMedium,
-				Text = entry.name,
-				TextSize = 11,
-				TextColor3 = self.theme.text,
+				Text = "[" .. entry.name .. "]",
+				TextSize = 13,
+				TextColor3 = KBL_TEXT,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				ZIndex = 5,
 			}, row)
 
-			local mode_label = create("TextLabel", {
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -8, 0, 0),
-				Size = UDim2.new(0.4, -8, 1, 0),
-				BackgroundTransparency = 1,
-				Font = Enum.Font.GothamMedium,
-				Text = "[" .. tostring(entry.mode) .. "]",
-				TextSize = 10,
-				TextColor3 = self.theme.text_soft,
-				TextXAlignment = Enum.TextXAlignment.Right,
+			local key_chip = create("Frame", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -5, 0.5, 0),
+				Size = UDim2.fromOffset(0, KBL_ROW_H - 8),
+				AutomaticSize = Enum.AutomaticSize.X,
+				BackgroundColor3 = entry.active and KBL_ACTIVE or KBL_PANEL,
+				BackgroundTransparency = entry.active and 0 or 0.1,
+				BorderSizePixel = 0,
 				ZIndex = 5,
 			}, row)
+			round_ui(key_chip, 6)
+			stroke(key_chip, entry.active and rgb(168, 130, 255) or KBL_STROKE, entry.active and 0.15 or 0.55, 1)
+
+			local key_label = create("TextLabel", {
+				Size = UDim2.new(0, 0, 1, 0),
+				AutomaticSize = Enum.AutomaticSize.X,
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamSemibold,
+				Text = "[" .. tostring(entry.key or entry.mode) .. "]",
+				TextSize = 12,
+				TextColor3 = entry.active and rgb(255, 255, 255) or KBL_TEXT,
+				ZIndex = 6,
+			}, key_chip)
+			create("UIPadding", {
+				PaddingLeft = UDim.new(0, 7),
+				PaddingRight = UDim.new(0, 7),
+			}, key_chip)
 
 			-- Animate in
 			row.BackgroundTransparency = 1
 			name_label.TextTransparency = 1
-			mode_label.TextTransparency = 1
-			tween(row, 0.2, { BackgroundTransparency = 0 })
+			key_label.TextTransparency = 1
+			tween(row, 0.2, { BackgroundTransparency = 0.08 })
 			tween(name_label, 0.2, { TextTransparency = 0 })
-			tween(mode_label, 0.2, { TextTransparency = 0 })
+			tween(key_label, 0.2, { TextTransparency = 0 })
 
 			insert(window._kbl_rows, { frame = row })
 		end
 
-		local total_height = 26 + count * 20
-		tween(kbl_frame, 0.2, { Size = UDim2.fromOffset(180, total_height) })
-		kbl_body.Size = UDim2.new(1, 0, 0, count * 20)
+		local total_height = KBL_HEADER_H + (count > 0 and (count * (KBL_ROW_H + KBL_ROW_PAD)) + 4 or 8)
+		tween(kbl_frame, 0.2, { Size = UDim2.fromOffset(KBL_W, total_height) })
+		kbl_body.Size = UDim2.new(1, -20, 0, count * (KBL_ROW_H + KBL_ROW_PAD))
 	end
 
 	window._kbl_refresh = kbl_refresh
 	window._wm_gui = wm_gui
 	window._kbl_gui = kbl_gui
 
-	function window:_kbl_add(name, mode)
+	function window:_kbl_add(name, mode, key, is_active)
 		for _, entry in ipairs(self._active_binds) do
-			if entry.name == name then return end
+			if entry.name == name then
+				entry.mode = mode
+				entry.key = key
+				entry.active = is_active == true
+				if kbl_frame.Visible then kbl_refresh() end
+				return
+			end
 		end
-		insert(self._active_binds, { name = name, mode = mode })
+		insert(self._active_binds, { name = name, mode = mode, key = key, active = is_active == true })
 		if kbl_frame.Visible then kbl_refresh() end
 	end
 
@@ -5527,16 +5626,19 @@ function Section:AddToggle(options)
 	end
 
 	local function sync_keybind_list_state()
-		local has_bind = false
+		local first_key = nil
+		local key_parts = {}
 		for _, bind in ipairs(toggle.binds) do
 			if bind.key and bind.key ~= "none" then
-				has_bind = true
-				break
+				local full = keybind_full_name(bind.key)
+				if not first_key then first_key = full end
+				key_parts[#key_parts + 1] = full
 			end
 		end
 
-		if state and has_bind and self.window._kbl_add then
-			self.window:_kbl_add(self.name, toggle.bind.mode)
+		if #key_parts > 0 and self.window._kbl_add then
+			-- "[Space + H]" style for multi-key binds, "[F]" for single
+			self.window:_kbl_add(self.name, toggle.bind.mode, concat(key_parts, " + "), state == true)
 		elseif self.window._kbl_remove then
 			self.window:_kbl_remove(self.name)
 		end
