@@ -2690,6 +2690,9 @@ function Library:CreateWindow(options)
 			if settings["__np_wm_show"] ~= nil then
 				window._settings_state.set_wm_show(settings["__np_wm_show"])
 			end
+			if settings["__np_kbl_position"] ~= nil and window._settings_state.set_kbl_position then
+				window._settings_state.set_kbl_position(settings["__np_kbl_position"])
+			end
 			if settings["__np_keybind"] ~= nil then
 				local ok, key = pcall(function()
 					return Enum.KeyCode[settings["__np_keybind"]]
@@ -2761,6 +2764,9 @@ function Library:CreateWindow(options)
 			payload.settings["__np_keybindlist"] = self._settings_state.get_keybindlist()
 			payload.settings["__np_wm_position"] = self._settings_state.get_wm_position()
 			payload.settings["__np_wm_show"] = self._settings_state.get_wm_show()
+			if self._settings_state.get_kbl_position then
+				payload.settings["__np_kbl_position"] = self._settings_state.get_kbl_position()
+			end
 			payload.settings["__np_keybind"] = self.keybind and self.keybind.Name or "Insert"
 		end
 
@@ -3824,6 +3830,7 @@ function Library:CreateWindow(options)
 		for _, entry in ipairs(window._active_binds) do
 			if entry.active then active[#active + 1] = entry end
 		end
+		table.sort(active, function(a, b) return (a.seq or 0) < (b.seq or 0) end)
 		local count = #active
 
 		-- Last bind switched off: DON'T touch rows or height — the entire
@@ -3881,17 +3888,31 @@ function Library:CreateWindow(options)
 	window._wm_gui = wm_gui
 	window._kbl_gui = kbl_gui
 
+	-- List order = activation order: a bind that just turned ON moves to the
+	-- END of the list. Without the seq stamp, rows surfaced at whatever array
+	-- slot the bind got when it was first registered (UI build order), which
+	-- read as random — one appeared mid-list, another on top.
+	local kbl_activation_seq = 0
+
 	function window:_kbl_add(name, mode, key, is_active)
+		is_active = is_active == true
 		for _, entry in ipairs(self._active_binds) do
 			if entry.name == name then
 				entry.mode = mode
 				entry.key = key
-				entry.active = is_active == true
+				if is_active and not entry.active then
+					kbl_activation_seq = kbl_activation_seq + 1
+					entry.seq = kbl_activation_seq
+				end
+				entry.active = is_active
 				if kbl_master then kbl_refresh() end
 				return
 			end
 		end
-		insert(self._active_binds, { name = name, mode = mode, key = key, active = is_active == true })
+		if is_active then
+			kbl_activation_seq = kbl_activation_seq + 1
+		end
+		insert(self._active_binds, { name = name, mode = mode, key = key, active = is_active, seq = is_active and kbl_activation_seq or 0 })
 		if kbl_master then kbl_refresh() end
 	end
 
@@ -3923,6 +3944,19 @@ function Library:CreateWindow(options)
 				wm_pos_index = (pos == "TopLeft") and 2 or 1
 				wm_pos_btn.Text = pos
 				wm_refresh_position()
+			end
+		end,
+		-- Keybind panel drag position (offsets only; scale part is the anchor preset)
+		get_kbl_position = function()
+			local p = kbl_holder.Position
+			return { xs = p.X.Scale, xo = p.X.Offset, ys = p.Y.Scale, yo = p.Y.Offset }
+		end,
+		set_kbl_position = function(tbl)
+			if type(tbl) ~= "table" then return end
+			local xs, xo = tonumber(tbl.xs), tonumber(tbl.xo)
+			local ys, yo = tonumber(tbl.ys), tonumber(tbl.yo)
+			if xs and xo and ys and yo then
+				kbl_holder.Position = UDim2.new(xs, xo, ys, yo)
 			end
 		end,
 		get_wm_show = function()
