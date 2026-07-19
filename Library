@@ -3448,13 +3448,14 @@ function Library:CreateWindow(options)
 	local kbl_master = false -- settings toggle state
 	local kbl_shown = false  -- currently faded in
 
-	-- CanvasGroup so the whole panel fades as one via GroupTransparency
+	-- CanvasGroup so the whole panel fades as one via GroupTransparency.
+	-- Background is mostly transparent: the frost comes from the glass part below.
 	local kbl_frame = create("CanvasGroup", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 52),
 		Size = UDim2.fromOffset(KBL_W, KBL_HEADER_H),
 		BackgroundColor3 = KBL_PANEL,
-		BackgroundTransparency = 0.05,
+		BackgroundTransparency = 0.45,
 		GroupTransparency = 1,
 		BorderSizePixel = 0,
 		Visible = false,
@@ -3462,6 +3463,86 @@ function Library:CreateWindow(options)
 		ZIndex = 2,
 	}, kbl_gui)
 	round_ui(kbl_frame, 6)
+	stroke(kbl_frame, rgb(255, 255, 255), 0.82, 1) -- thin light edge, iOS glass rim
+
+	-- ===== iOS frosted-glass backdrop =====
+	-- A real blur behind UI: a thin Glass part floated just in front of the
+	-- camera, sized/positioned every frame to sit exactly under the panel
+	-- rect. Glass material refracts/blurs the 3D world behind it. Purely
+	-- visual, parented to the camera, never collidable.
+	local kbl_glass = nil
+	local function kbl_ensure_glass()
+		if kbl_glass and kbl_glass.Parent then return kbl_glass end
+		local ok, part = pcall(function()
+			local p = Instance.new("Part")
+			p.Name = "np_kbl_glass"
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Glass
+			p.Color = Color3.fromRGB(12, 10, 16)
+			p.Transparency = 0.45
+			p.Reflectance = 0
+			p.Size = Vector3.new(0.1, 0.1, 0.01)
+			return p
+		end)
+		if not ok then return nil end
+		kbl_glass = part
+		return part
+	end
+
+	local function kbl_destroy_glass()
+		if kbl_glass then
+			pcall(function() kbl_glass:Destroy() end)
+			kbl_glass = nil
+		end
+	end
+	window._kbl_destroy_glass = kbl_destroy_glass
+
+	-- Fade state for the glass (mirrors GroupTransparency fade)
+	local kbl_glass_alpha = 0 -- 0 hidden, 1 fully shown
+
+	insert(window._renderstep_hooks, function(dt)
+		-- Track fade: approach 1 when shown, 0 when hiding (matches 0.25s tween pace)
+		local target = (kbl_frame.Visible and kbl_shown) and 1 or 0
+		local step = dt / 0.25
+		if kbl_glass_alpha < target then
+			kbl_glass_alpha = math.min(1, kbl_glass_alpha + step)
+		elseif kbl_glass_alpha > target then
+			kbl_glass_alpha = math.max(0, kbl_glass_alpha - step)
+		end
+		if kbl_glass_alpha <= 0.01 then
+			kbl_destroy_glass()
+			return
+		end
+
+		local cam = ws.CurrentCamera
+		if not cam then return end
+		local glass = kbl_ensure_glass()
+		if not glass then return end
+		if glass.Parent ~= cam then glass.Parent = cam end
+
+		-- Project the panel rect onto a plane DIST studs in front of the camera
+		local DIST = 0.5
+		local pos = kbl_frame.AbsolutePosition
+		local size = kbl_frame.AbsoluteSize
+		if size.X < 2 or size.Y < 2 then return end
+		local cx = pos.X + size.X * 0.5
+		local cy = pos.Y + size.Y * 0.5
+		local ray_c = cam:ViewportPointToRay(cx, cy, DIST)
+		local ray_r = cam:ViewportPointToRay(pos.X + size.X, cy, DIST)
+		local ray_l = cam:ViewportPointToRay(pos.X, cy, DIST)
+		local ray_t = cam:ViewportPointToRay(cx, pos.Y, DIST)
+		local ray_b = cam:ViewportPointToRay(cx, pos.Y + size.Y, DIST)
+		local w = (ray_r.Origin - ray_l.Origin).Magnitude
+		local h = (ray_t.Origin - ray_b.Origin).Magnitude
+
+		glass.CFrame = CFrame.lookAt(ray_c.Origin, ray_c.Origin + cam.CFrame.LookVector)
+		glass.Size = Vector3.new(w, h, 0.01)
+		glass.Transparency = 0.45 + (1 - kbl_glass_alpha) * 0.55
+	end)
 
 	local kbl_title = create("TextLabel", {
 		Position = UDim2.fromOffset(0, 0),
@@ -3899,6 +3980,9 @@ function Window:Destroy()
 	end
 	if self._kbl_gui then
 		self._kbl_gui:Destroy()
+	end
+	if self._kbl_destroy_glass then
+		self._kbl_destroy_glass()
 	end
 	for index, window in ipairs(self.library.windows) do
 		if window == self then
