@@ -3244,7 +3244,7 @@ function Library:CreateWindow(options)
 	local wm_frame = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 12),
-		Size = UDim2.fromOffset(0, 46),
+		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundColor3 = WM_PANEL,
 		BackgroundTransparency = 0.04,
@@ -3252,29 +3252,29 @@ function Library:CreateWindow(options)
 		Visible = false,
 		ZIndex = 2,
 	}, wm_gui)
-	round_ui(wm_frame, 10)
-	stroke(wm_frame, WM_STROKE, 0.35, 1)
+	round_ui(wm_frame, 7)
+	stroke(wm_frame, WM_STROKE, 0.45, 1)
 
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 10),
+		Padding = UDim.new(0, 6),
 	}, wm_frame)
 	create("UIPadding", {
-		PaddingLeft = UDim.new(0, 14),
-		PaddingRight = UDim.new(0, 14),
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
 	}, wm_frame)
 
 	local wm_brand = create("TextLabel", {
-		Size = UDim2.fromOffset(0, 46),
+		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamBlack,
 		Text = "OXY",
 		TextColor3 = rgb(255, 255, 255),
-		TextSize = 30,
+		TextSize = 17,
 		LayoutOrder = 1,
 		ZIndex = 5,
 	}, wm_frame)
@@ -3288,9 +3288,9 @@ function Library:CreateWindow(options)
 	}, wm_brand)
 
 	create("Frame", {
-		Size = UDim2.fromOffset(1, 26),
+		Size = UDim2.fromOffset(1, 14),
 		BackgroundColor3 = WM_STROKE,
-		BackgroundTransparency = 0.35,
+		BackgroundTransparency = 0.45,
 		BorderSizePixel = 0,
 		LayoutOrder = 2,
 		ZIndex = 5,
@@ -3298,77 +3298,60 @@ function Library:CreateWindow(options)
 
 	-- fixed_template: chip width is locked to this widest-case string so live
 	-- values (FPS/ping/time) never resize the chip — the watermark stays static
-	local function wm_make_chip(order, icon_name, text_color, fixed_template)
+	local function wm_make_chip(order, text_color, fixed_template)
 		local chip = create("Frame", {
-			Size = UDim2.fromOffset(0, 30),
+			Size = UDim2.fromOffset(0, 20),
 			AutomaticSize = Enum.AutomaticSize.X,
 			BackgroundColor3 = WM_CHIP,
-			BackgroundTransparency = 0.08,
+			BackgroundTransparency = 0.15,
 			BorderSizePixel = 0,
 			LayoutOrder = order,
 			Visible = false,
 			ZIndex = 4,
 		}, wm_frame)
-		round_ui(chip, 8)
-
-		local text_x = 10
-		local icon_id = resolve_icon(icon_name)
-		if icon_id then
-			create("ImageLabel", {
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 9, 0.5, 0),
-				Size = UDim2.fromOffset(15, 15),
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				Image = icon_id,
-				ImageColor3 = WM_TEXT,
-				ZIndex = 5,
-			}, chip)
-			text_x = 30
-		end
+		round_ui(chip, 5)
 
 		local label
 		if fixed_template then
 			local text_w = 0
 			pcall(function()
-				text_w = text_service:GetTextSize(fixed_template, 13, Enum.Font.GothamSemibold, vec2(9999, 30)).X
+				text_w = text_service:GetTextSize(fixed_template, 11, Enum.Font.GothamMedium, vec2(9999, 20)).X
 			end)
 			chip.AutomaticSize = Enum.AutomaticSize.None
-			chip.Size = UDim2.fromOffset(text_x + text_w + 10, 30)
+			chip.Size = UDim2.fromOffset(text_w + 16, 20)
 			label = create("TextLabel", {
-				Position = UDim2.fromOffset(text_x, 0),
-				Size = UDim2.new(1, -text_x - 10, 1, 0),
+				Size = UDim2.new(1, 0, 1, 0),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
-				Font = Enum.Font.GothamSemibold,
+				Font = Enum.Font.GothamMedium,
 				Text = "",
 				TextColor3 = text_color or WM_TEXT,
-				TextSize = 13,
+				TextSize = 11,
 				ZIndex = 5,
 			}, chip)
 		else
 			label = create("TextLabel", {
-				Position = UDim2.fromOffset(text_x, 0),
+				Position = UDim2.fromOffset(8, 0),
 				Size = UDim2.new(0, 0, 1, 0),
 				AutomaticSize = Enum.AutomaticSize.X,
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
-				Font = Enum.Font.GothamSemibold,
+				Font = Enum.Font.GothamMedium,
 				Text = "",
 				TextColor3 = text_color or WM_TEXT,
-				TextSize = 13,
+				TextSize = 11,
 				ZIndex = 5,
 			}, chip)
-			create("UIPadding", { PaddingRight = UDim.new(0, 10) }, chip)
+			create("UIPadding", { PaddingRight = UDim.new(0, 8) }, chip)
 		end
 		return chip, label
 	end
 
-	local wm_chip_nick, wm_label_nick = wm_make_chip(3, "user")
-	local wm_chip_fps, wm_label_fps = wm_make_chip(4, nil, WM_GREEN, "999 FPS ↑")
-	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil, nil, "999 ms")
-	local wm_chip_place, wm_label_place = wm_make_chip(6, "compass")
-	local wm_chip_time, wm_label_time = wm_make_chip(7, nil, nil, "00:00:00")
+	local wm_chip_nick, wm_label_nick = wm_make_chip(3)
+	local wm_chip_fps, wm_label_fps = wm_make_chip(4, WM_GREEN, "999 FPS")
+	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil, "999 ms")
+	local wm_chip_place, wm_label_place = wm_make_chip(6)
+	local wm_chip_time, wm_label_time = wm_make_chip(7, nil, "00:00:00")
 
 	wm_refresh_position = function()
 		if wm_position == "TopLeft" then
@@ -3390,7 +3373,7 @@ function Library:CreateWindow(options)
 
 		wm_chip_fps.Visible = wm_show.FPS == true
 		if wm_show.FPS then
-			wm_label_fps.Text = tostring(wm_fps_value) .. " FPS ↑"
+			wm_label_fps.Text = tostring(wm_fps_value) .. " FPS"
 		end
 
 		wm_chip_ping.Visible = wm_show.Ping == true
@@ -3457,10 +3440,10 @@ function Library:CreateWindow(options)
 	local KBL_PANEL = rgb(31, 28, 34)
 	local KBL_ACCENT = rgb(226, 73, 168)
 	local KBL_TEXT = rgb(245, 243, 247)
-	local KBL_W = 200
-	local KBL_HEADER_H = 32
-	local KBL_ROW_H = 26
-	local KBL_ROW_PAD = 4
+	local KBL_W = 150
+	local KBL_HEADER_H = 24
+	local KBL_ROW_H = 20
+	local KBL_ROW_PAD = 3
 
 	local kbl_master = false -- settings toggle state
 	local kbl_shown = false  -- currently faded in
@@ -3468,7 +3451,7 @@ function Library:CreateWindow(options)
 	-- CanvasGroup so the whole panel fades as one via GroupTransparency
 	local kbl_frame = create("CanvasGroup", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 70),
+		Position = UDim2.new(1, -12, 0, 52),
 		Size = UDim2.fromOffset(KBL_W, KBL_HEADER_H),
 		BackgroundColor3 = KBL_PANEL,
 		BackgroundTransparency = 0.05,
@@ -3478,7 +3461,7 @@ function Library:CreateWindow(options)
 		ClipsDescendants = true,
 		ZIndex = 2,
 	}, kbl_gui)
-	round_ui(kbl_frame, 8)
+	round_ui(kbl_frame, 6)
 
 	local kbl_title = create("TextLabel", {
 		Position = UDim2.fromOffset(0, 0),
@@ -3487,24 +3470,23 @@ function Library:CreateWindow(options)
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamBold,
 		Text = "KEYBINDS",
-		TextSize = 13,
+		TextSize = 11,
 		TextColor3 = KBL_TEXT,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		ZIndex = 4,
 	}, kbl_frame)
 
 	local kbl_underline = create("Frame", {
-		Position = UDim2.new(0, 8, 0, KBL_HEADER_H),
-		Size = UDim2.new(1, -16, 0, 2),
+		Position = UDim2.new(0, 6, 0, KBL_HEADER_H),
+		Size = UDim2.new(1, -12, 0, 1),
 		BackgroundColor3 = KBL_ACCENT,
 		BorderSizePixel = 0,
 		ZIndex = 4,
 	}, kbl_frame)
-	round_ui(kbl_underline, 1)
 
 	local kbl_body = create("Frame", {
-		Position = UDim2.fromOffset(10, KBL_HEADER_H + 8),
-		Size = UDim2.new(1, -20, 0, 0),
+		Position = UDim2.fromOffset(8, KBL_HEADER_H + 5),
+		Size = UDim2.new(1, -16, 0, 0),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 3,
@@ -3583,11 +3565,11 @@ function Library:CreateWindow(options)
 
 				local name_label = create("TextLabel", {
 					Position = UDim2.fromOffset(2, 0),
-					Size = UDim2.new(1, -74, 1, 0),
+					Size = UDim2.new(1, -62, 1, 0),
 					BackgroundTransparency = 1,
 					Font = Enum.Font.GothamMedium,
 					Text = entry.name,
-					TextSize = 13,
+					TextSize = 11,
 					TextColor3 = KBL_TEXT,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextTruncate = Enum.TextTruncate.AtEnd,
@@ -3598,34 +3580,34 @@ function Library:CreateWindow(options)
 				local badge = create("Frame", {
 					AnchorPoint = Vector2.new(1, 0.5),
 					Position = UDim2.new(1, -2, 0.5, 0),
-					Size = UDim2.fromOffset(0, KBL_ROW_H - 6),
+					Size = UDim2.fromOffset(0, KBL_ROW_H - 4),
 					AutomaticSize = Enum.AutomaticSize.X,
 					BackgroundColor3 = KBL_ACCENT,
 					BorderSizePixel = 0,
 					ZIndex = 5,
 				}, row)
-				round_ui(badge, 5)
+				round_ui(badge, 4)
 
 				create("TextLabel", {
 					Size = UDim2.new(0, 0, 1, 0),
 					AutomaticSize = Enum.AutomaticSize.X,
 					BackgroundTransparency = 1,
-					Font = Enum.Font.GothamSemibold,
+					Font = Enum.Font.GothamMedium,
 					Text = badge_text,
-					TextSize = 11,
+					TextSize = 10,
 					TextColor3 = rgb(255, 255, 255),
 					ZIndex = 6,
 				}, badge)
 				create("UIPadding", {
-					PaddingLeft = UDim.new(0, 8),
-					PaddingRight = UDim.new(0, 8),
+					PaddingLeft = UDim.new(0, 6),
+					PaddingRight = UDim.new(0, 6),
 				}, badge)
 
 				insert(window._kbl_rows, { frame = row })
 			end
 		end
 
-		local total_height = KBL_HEADER_H + 8 + (count > 0 and (count * (KBL_ROW_H + KBL_ROW_PAD)) + 4 or 0)
+		local total_height = KBL_HEADER_H + 5 + (count > 0 and (count * (KBL_ROW_H + KBL_ROW_PAD)) + 3 or 0)
 		kbl_body.Size = UDim2.new(1, -20, 0, count * (KBL_ROW_H + KBL_ROW_PAD))
 		if count > 0 then
 			tween(kbl_frame, 0.2, { Size = UDim2.fromOffset(KBL_W, total_height) })
