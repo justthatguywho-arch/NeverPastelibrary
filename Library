@@ -1449,19 +1449,28 @@ function Library:CreateWindow(options)
 		}),
 	}, header_shadow)
 
+	-- Title in the OXY watermark style: heavy black font, white→lilac→violet
+	-- diagonal gradient, thin vertical divider after it (replaces the old
+	-- accent-stroked GothamBold look)
 	window.title = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(10, 0),
 		Size = UDim2.fromOffset(130, 40),
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.GothamBlack,
 		Text = options.Title or "Menu",
 		TextSize = 21,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = self.theme.text,
-		TextStrokeColor3 = self.theme.accent,
-		TextStrokeTransparency = 0.64,
+		TextColor3 = rgb(255, 255, 255),
 		ZIndex = 4,
 	}, window.header)
+	create("UIGradient", {
+		Rotation = 65,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
+			ColorSequenceKeypoint.new(0.55, rgb(214, 178, 255)),
+			ColorSequenceKeypoint.new(1, rgb(150, 92, 255)),
+		}),
+	}, window.title)
 
 	window.tab_bar = create("Frame", {
 		BackgroundTransparency = 1,
@@ -1655,9 +1664,8 @@ function Library:CreateWindow(options)
 	}, info_panel)
 
 	-- Forward declarations for watermark settings
-	local wm_position = "TopRight"
-	local wm_show = { Nickname = true, Place = true, FPS = true, Ping = true, Time = true }
-	local wm_refresh_position
+	local wm_style = "Blue"
+	local wm_apply_style
 
 	-- ========== SETTINGS PANEL ==========
 	local settings_panel = create_aux_popup(window.popup_container, UDim2.fromOffset(220, 148), 90, self.theme.bg, self.theme.line)
@@ -1820,8 +1828,8 @@ function Library:CreateWindow(options)
 	local watermark_toggle = create_settings_toggle_row("Watermark", false, 1)
 	local keybindlist_toggle = create_settings_toggle_row("Keybind List", false, 2)
 
-	-- Watermark Position dropdown row
-	local wm_pos_row = create("Frame", {
+	-- Watermark Style row (Black / Blue / Purple)
+	local wm_style_row = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 22),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -1834,212 +1842,42 @@ function Library:CreateWindow(options)
 		Position = UDim2.fromOffset(0, 0),
 		Size = UDim2.new(0.5, 0, 1, 0),
 		Font = Enum.Font.GothamMedium,
-		Text = "WM Position",
+		Text = "WM Style",
 		TextSize = 11,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = self.theme.text,
 		ZIndex = 92,
-	}, wm_pos_row)
+	}, wm_style_row)
 
-	local wm_pos_btn = create("TextButton", {
+	local wm_style_btn = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = UDim2.fromOffset(70, 18),
 		BackgroundColor3 = self.theme.panel,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamMedium,
-		Text = "TopRight",
+		Text = "Blue",
 		TextSize = 10,
 		TextColor3 = self.theme.text_soft,
 		AutoButtonColor = false,
 		ZIndex = 93,
-	}, wm_pos_row)
-	round_ui(wm_pos_btn, 3)
-	stroke(wm_pos_btn, self.theme.line, 0.35, 1)
+	}, wm_style_row)
+	round_ui(wm_style_btn, 3)
+	stroke(wm_style_btn, self.theme.line, 0.35, 1)
 
-	local wm_positions = { "TopRight", "TopLeft" }
-	local wm_pos_index = 1
-	connect(window.connections, wm_pos_btn.MouseButton1Click, function()
-		wm_pos_index = wm_pos_index % #wm_positions + 1
-		local pos = wm_positions[wm_pos_index]
-		wm_pos_btn.Text = pos
-		wm_position = pos
-		wm_refresh_position()
+	local wm_styles = { "Blue", "Purple", "Black" }
+	local wm_style_index = 1
+	connect(window.connections, wm_style_btn.MouseButton1Click, function()
+		wm_style_index = wm_style_index % #wm_styles + 1
+		local style = wm_styles[wm_style_index]
+		wm_style_btn.Text = style
+		wm_style = style
+		if wm_apply_style then wm_apply_style(style) end
 	end)
 
-	-- Watermark Show fields dropdown row
-	local wm_fields_row = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 22),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		LayoutOrder = 4,
-		ZIndex = 92,
-	}, settings_body)
+	-- Settings panel height
+	settings_panel.Size = UDim2.fromOffset(220, 156)
 
-	create("TextLabel", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, 0),
-		Size = UDim2.new(0.5, 0, 1, 0),
-		Font = Enum.Font.GothamMedium,
-		Text = "WM Fields",
-		TextSize = 11,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = self.theme.text,
-		ZIndex = 92,
-	}, wm_fields_row)
-
-	local wm_field_keys = { "Nickname", "Place", "FPS", "Ping", "Time" }
-
-	local wm_fields_btn = create("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, 0, 0.5, 0),
-		Size = UDim2.fromOffset(70, 18),
-		BackgroundColor3 = self.theme.panel,
-		BorderSizePixel = 0,
-		Font = Enum.Font.GothamMedium,
-		Text = "All ▼",
-		TextSize = 10,
-		TextColor3 = self.theme.text_soft,
-		AutoButtonColor = false,
-		ZIndex = 93,
-	}, wm_fields_row)
-	round_ui(wm_fields_btn, 3)
-	stroke(wm_fields_btn, self.theme.line, 0.35, 1)
-
-	-- Multi-select dropdown popup for WM fields
-	local wm_fields_popup = create("Frame", {
-		Visible = false,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 0, 1, 4),
-		Size = UDim2.fromOffset(120, #wm_field_keys * 22 + 8),
-		BackgroundColor3 = self.theme.bg,
-		BorderSizePixel = 0,
-		ZIndex = 100,
-	}, wm_fields_row)
-	round_ui(wm_fields_popup, 4)
-	stroke(wm_fields_popup, self.theme.line, 0, 1)
-
-	local wm_dd_layout = create("UIListLayout", {
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 0),
-	}, wm_fields_popup)
-	create("UIPadding", {
-		PaddingTop = UDim.new(0, 4),
-		PaddingBottom = UDim.new(0, 4),
-		PaddingLeft = UDim.new(0, 6),
-		PaddingRight = UDim.new(0, 6),
-	}, wm_fields_popup)
-
-	local function wm_update_fields_btn_text()
-		local count = 0
-		for _, k in ipairs(wm_field_keys) do
-			if wm_show[k] then count = count + 1 end
-		end
-		if count == #wm_field_keys then
-			wm_fields_btn.Text = "All ▼"
-		elseif count == 0 then
-			wm_fields_btn.Text = "None ▼"
-		else
-			wm_fields_btn.Text = count .. "/" .. #wm_field_keys .. " ▼"
-		end
-	end
-
-	local wm_field_visuals = {}
-
-	for idx, field_name in ipairs(wm_field_keys) do
-		local dd_row = create("Frame", {
-			Size = UDim2.new(1, 0, 0, 22),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			LayoutOrder = idx,
-			ZIndex = 101,
-		}, wm_fields_popup)
-
-		local dd_check = create("Frame", {
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 0, 0.5, 0),
-			Size = UDim2.fromOffset(12, 12),
-			BackgroundColor3 = wm_show[field_name] and self.theme.accent or self.theme.bg,
-			BorderSizePixel = 0,
-			ZIndex = 102,
-		}, dd_row)
-		round_ui(dd_check, 2)
-		local dd_check_stroke = stroke(dd_check, wm_show[field_name] and self.theme.accent or self.theme.line, 0.15, 1)
-
-		local dd_tick = create("ImageLabel", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(0.7, 0.7),
-			BackgroundTransparency = 1,
-			Image = "rbxassetid://10709790644",
-			ImageColor3 = rgb(255, 255, 255),
-			ImageTransparency = wm_show[field_name] and 0 or 1,
-			ZIndex = 103,
-		}, dd_check)
-
-		wm_field_visuals[field_name] = { check = dd_check, stroke = dd_check_stroke, tick = dd_tick }
-
-		local dd_label = create("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(18, 0),
-			Size = UDim2.new(1, -18, 1, 0),
-			Font = Enum.Font.GothamMedium,
-			Text = field_name,
-			TextSize = 11,
-			TextColor3 = self.theme.text,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 102,
-		}, dd_row)
-
-		local dd_hitbox = create("TextButton", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			Text = "",
-			ZIndex = 104,
-		}, dd_row)
-
-		connect(window.connections, dd_hitbox.MouseButton1Click, function()
-			wm_show[field_name] = not wm_show[field_name]
-			if wm_show[field_name] then
-				tween(dd_check, 0.15, { BackgroundColor3 = self.theme.accent })
-				tween(dd_check_stroke, 0.15, { Color = self.theme.accent })
-				tween(dd_tick, 0.15, { ImageTransparency = 0 })
-			else
-				tween(dd_check, 0.15, { BackgroundColor3 = self.theme.bg })
-				tween(dd_check_stroke, 0.15, { Color = self.theme.line })
-				tween(dd_tick, 0.15, { ImageTransparency = 1 })
-			end
-			wm_update_fields_btn_text()
-		end)
-
-		connect(window.connections, dd_hitbox.MouseEnter, function()
-			tween(dd_label, 0.1, { TextColor3 = self.theme.accent })
-		end)
-		connect(window.connections, dd_hitbox.MouseLeave, function()
-			tween(dd_label, 0.1, { TextColor3 = self.theme.text })
-		end)
-	end
-
-	local wm_fields_popup_open = false
-	connect(window.connections, wm_fields_btn.MouseButton1Click, function()
-		wm_fields_popup_open = not wm_fields_popup_open
-		wm_fields_popup.Visible = wm_fields_popup_open
-	end)
-
-	insert(window._input_began_hooks, function(input)
-		if not wm_fields_popup_open then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-		local point = picker_input_position()
-		if not point_inside(wm_fields_popup, point) and not point_inside(wm_fields_btn, point) then
-			wm_fields_popup_open = false
-			wm_fields_popup.Visible = false
-		end
-	end)
-
-	-- Increase settings panel height to fit all rows
-	settings_panel.Size = UDim2.fromOffset(220, 178)
 
 	local config_panel = create_aux_popup(window.popup_container, UDim2.fromOffset(500, 260), 90, self.theme.bg, self.theme.line)
 	local config_title = create("TextLabel", {
@@ -2684,11 +2522,8 @@ function Library:CreateWindow(options)
 			if settings["__np_keybindlist"] ~= nil then
 				window._settings_state.set_keybindlist(settings["__np_keybindlist"])
 			end
-			if settings["__np_wm_position"] ~= nil then
-				window._settings_state.set_wm_position(settings["__np_wm_position"])
-			end
-			if settings["__np_wm_show"] ~= nil then
-				window._settings_state.set_wm_show(settings["__np_wm_show"])
+			if settings["__np_wm_style"] ~= nil and window._settings_state.set_wm_style then
+				window._settings_state.set_wm_style(settings["__np_wm_style"])
 			end
 			if settings["__np_kbl_position"] ~= nil and window._settings_state.set_kbl_position then
 				window._settings_state.set_kbl_position(settings["__np_kbl_position"])
@@ -2762,8 +2597,9 @@ function Library:CreateWindow(options)
 		if self._settings_state then
 			payload.settings["__np_watermark"] = self._settings_state.get_watermark()
 			payload.settings["__np_keybindlist"] = self._settings_state.get_keybindlist()
-			payload.settings["__np_wm_position"] = self._settings_state.get_wm_position()
-			payload.settings["__np_wm_show"] = self._settings_state.get_wm_show()
+			if self._settings_state.get_wm_style then
+				payload.settings["__np_wm_style"] = self._settings_state.get_wm_style()
+			end
 			if self._settings_state.get_kbl_position then
 				payload.settings["__np_kbl_position"] = self._settings_state.get_kbl_position()
 			end
@@ -3115,7 +2951,7 @@ function Library:CreateWindow(options)
 		if config_panel.Visible and not point_inside(config_panel, point) and not point_inside(window.config_button, point) then
 			close_config()
 		end
-		if settings_panel.Visible and not point_inside(settings_panel, point) and not point_inside(window.settings_button, point) and not (wm_fields_popup.Visible and point_inside(wm_fields_popup, point)) then
+		if settings_panel.Visible and not point_inside(settings_panel, point) and not point_inside(window.settings_button, point) then
 			close_settings()
 		end
 	end)
@@ -3227,6 +3063,9 @@ function Library:CreateWindow(options)
 	end
 
 	-- ========== WATERMARK OVERLAY ==========
+	-- "Tactical" watermark (user-supplied design, adapted): emblem "O",
+	-- nickname + FPS + ping, animated neon runners and wave lines.
+	-- Styles: Black / Blue (default) / Purple, switched from Settings.
 	local wm_gui = create("ScreenGui", {
 		Name = gui_name .. "_Watermark",
 		IgnoreGuiInset = true,
@@ -3235,199 +3074,334 @@ function Library:CreateWindow(options)
 		DisplayOrder = (options.DisplayOrder or 1) + 10,
 	}, get_hui)
 
-	local wm_fps_accum = 0
-	local wm_fps_count = 0
-	local wm_fps_value = 0
-	local wm_fps_timer = 0
+	local WM_STYLES = {
+		Blue = {
+			Accent = rgb(89, 215, 255),
+			Light = rgb(206, 240, 255),
+		},
+		Purple = {
+			Accent = rgb(183, 117, 255),
+			Light = rgb(232, 207, 255),
+		},
+		Black = {
+			Accent = rgb(120, 126, 134),
+			Light = rgb(214, 218, 224),
+		},
+	}
 
-	-- Purple palette per reference mock (hardcoded, independent of theme accent)
-	local WM_PANEL = rgb(24, 16, 34)
-	local WM_CHIP = rgb(14, 9, 21)
-	local WM_STROKE = rgb(126, 87, 194)
-	local WM_TEXT = rgb(240, 236, 250)
-	local WM_GREEN = rgb(87, 217, 130)
+	local wm_root = create("Frame", {
+		Active = true,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(24, 24),
+		Size = UDim2.fromOffset(164, 30),
+		Visible = false,
+	}, wm_gui)
 
-	local wm_frame = create("Frame", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
-		Size = UDim2.fromOffset(0, 30),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = WM_PANEL,
+	create("UIScale", { Scale = 1.2 }, wm_root)
+
+	local wm_shadow = create("Frame", {
+		BackgroundColor3 = rgb(0, 0, 0),
+		BackgroundTransparency = 0.58,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 2),
+		Size = UDim2.fromOffset(164, 26),
+		ZIndex = 0,
+	}, wm_root)
+	round_ui(wm_shadow, 2)
+
+	local wm_panel = create("Frame", {
+		Active = true,
+		BackgroundColor3 = rgb(24, 29, 35),
+		BackgroundTransparency = 0.12,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Size = UDim2.fromOffset(164, 26),
+		ZIndex = 1,
+	}, wm_root)
+	round_ui(wm_panel, 2)
+
+	create("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, rgb(36, 43, 51)),
+			ColorSequenceKeypoint.new(0.48, rgb(25, 31, 38)),
+			ColorSequenceKeypoint.new(1, rgb(18, 22, 27)),
+		}),
+		Rotation = 90,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.02),
+			NumberSequenceKeypoint.new(1, 0.12),
+		}),
+	}, wm_panel)
+
+	local wm_panel_stroke = create("UIStroke", {
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Thickness = 1,
+		Transparency = 0.08,
+	}, wm_panel)
+
+	local wm_top_runner = create("Frame", {
 		BackgroundTransparency = 0.04,
 		BorderSizePixel = 0,
-		Visible = false,
-		ZIndex = 2,
-	}, wm_gui)
-	round_ui(wm_frame, 7)
-	stroke(wm_frame, WM_STROKE, 0.45, 1)
+		Position = UDim2.fromOffset(-32, 0),
+		Size = UDim2.fromOffset(32, 1),
+		ZIndex = 4,
+	}, wm_panel)
 
-	create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 6),
-	}, wm_frame)
-	create("UIPadding", {
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 10),
-	}, wm_frame)
-
-	local wm_brand = create("TextLabel", {
-		Size = UDim2.fromOffset(0, 30),
-		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundTransparency = 1,
+	local wm_bottom_runner = create("Frame", {
+		BackgroundTransparency = 0.04,
 		BorderSizePixel = 0,
-		Font = Enum.Font.GothamBlack,
-		Text = "OXY",
-		TextColor3 = rgb(255, 255, 255),
-		TextSize = 17,
-		LayoutOrder = 1,
-		ZIndex = 5,
-	}, wm_frame)
-	create("UIGradient", {
-		Rotation = 65,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.55, rgb(214, 178, 255)),
-			ColorSequenceKeypoint.new(1, rgb(150, 92, 255)),
-		}),
-	}, wm_brand)
+		Position = UDim2.fromOffset(164, 25),
+		Size = UDim2.fromOffset(32, 1),
+		ZIndex = 4,
+	}, wm_panel)
+
+	local wm_runner_transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.35, 0.45),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(0.65, 0.45),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	create("UIGradient", { Transparency = wm_runner_transparency }, wm_top_runner)
+	create("UIGradient", { Transparency = wm_runner_transparency }, wm_bottom_runner)
+
+	local wm_left_neon = create("Frame", {
+		BackgroundTransparency = 0.08,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 2),
+		Size = UDim2.fromOffset(1, 22),
+		ZIndex = 4,
+	}, wm_panel)
+
+	local wm_right_neon = create("Frame", {
+		BackgroundTransparency = 0.08,
+		BorderSizePixel = 0,
+		Position = UDim2.new(1, -1, 0, 2),
+		Size = UDim2.fromOffset(1, 22),
+		ZIndex = 4,
+	}, wm_panel)
+
+	local wm_top_neon = create("Frame", {
+		BackgroundTransparency = 0.48,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(2, 1),
+		Size = UDim2.fromOffset(160, 1),
+		ZIndex = 3,
+	}, wm_panel)
+
+	local wm_bottom_neon = create("Frame", {
+		BackgroundTransparency = 0.58,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(2, 24),
+		Size = UDim2.fromOffset(160, 1),
+		ZIndex = 3,
+	}, wm_panel)
+
+	local wm_wave_dots = {}
+	for wave_index = 1, 3 do
+		local wave = {}
+		for point_index = 0, 54 do
+			wave[#wave + 1] = create("Frame", {
+				BackgroundTransparency = wave_index % 2 == 0 and 0.9 or 0.84,
+				BorderSizePixel = 0,
+				Position = UDim2.fromOffset(point_index * 3, 0),
+				Size = UDim2.fromOffset(4, 1),
+				ZIndex = 2,
+			}, wm_panel)
+		end
+		wm_wave_dots[wave_index] = wave
+	end
 
 	create("Frame", {
-		Size = UDim2.fromOffset(1, 14),
-		BackgroundColor3 = WM_STROKE,
-		BackgroundTransparency = 0.45,
+		BackgroundColor3 = rgb(231, 241, 250),
+		BackgroundTransparency = 0.89,
 		BorderSizePixel = 0,
-		LayoutOrder = 2,
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 0, 1),
+		ZIndex = 3,
+	}, wm_panel)
+
+	local wm_emblem_glow = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Position = UDim2.fromOffset(-1, 0),
+		Rotation = -6,
+		Size = UDim2.fromOffset(24, 26),
+		Text = "O",
+		TextSize = 16,
+		TextTransparency = 0.62,
+		ZIndex = 4,
+	}, wm_panel)
+
+	local wm_emblem = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Position = UDim2.fromOffset(-1, 0),
+		Rotation = -6,
+		Size = UDim2.fromOffset(24, 26),
+		Text = "O",
+		TextSize = 14,
 		ZIndex = 5,
-	}, wm_frame)
+	}, wm_panel)
 
-	-- fixed_template: chip width is locked to this widest-case string so live
-	-- values (FPS/ping/time) never resize the chip — the watermark stays static
-	local function wm_make_chip(order, text_color, fixed_template)
-		local chip = create("Frame", {
-			Size = UDim2.fromOffset(0, 20),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundColor3 = WM_CHIP,
-			BackgroundTransparency = 0.15,
-			BorderSizePixel = 0,
-			LayoutOrder = order,
-			Visible = false,
-			ZIndex = 4,
-		}, wm_frame)
-		round_ui(chip, 5)
+	create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Position = UDim2.fromOffset(30, 0),
+		Size = UDim2.fromOffset(58, 26),
+		Text = tostring(lp and lp.DisplayName or "Player"),
+		TextColor3 = rgb(243, 241, 245),
+		TextSize = 9,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 5,
+	}, wm_panel)
 
-		local label
-		if fixed_template then
-			local text_w = 0
-			pcall(function()
-				text_w = text_service:GetTextSize(fixed_template, 11, Enum.Font.GothamMedium, vec2(9999, 20)).X
-			end)
-			chip.AutomaticSize = Enum.AutomaticSize.None
-			chip.Size = UDim2.fromOffset(text_w + 16, 20)
-			label = create("TextLabel", {
-				Size = UDim2.new(1, 0, 1, 0),
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				Font = Enum.Font.GothamMedium,
-				Text = "",
-				TextColor3 = text_color or WM_TEXT,
-				TextSize = 11,
-				ZIndex = 5,
-			}, chip)
-		else
-			label = create("TextLabel", {
-				Position = UDim2.fromOffset(8, 0),
-				Size = UDim2.new(0, 0, 1, 0),
-				AutomaticSize = Enum.AutomaticSize.X,
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				Font = Enum.Font.GothamMedium,
-				Text = "",
-				TextColor3 = text_color or WM_TEXT,
-				TextSize = 11,
-				ZIndex = 5,
-			}, chip)
-			create("UIPadding", { PaddingRight = UDim.new(0, 8) }, chip)
-		end
-		return chip, label
-	end
+	local wm_fps_metric = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Position = UDim2.fromOffset(90, 0),
+		RichText = true,
+		Size = UDim2.fromOffset(36, 26),
+		Text = '<b>--</b> <font size="7" color="#B7C0CB">fps</font>',
+		TextColor3 = rgb(243, 241, 245),
+		TextSize = 9,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 5,
+	}, wm_panel)
 
-	local wm_chip_nick, wm_label_nick = wm_make_chip(3)
-	local wm_chip_fps, wm_label_fps = wm_make_chip(4, WM_GREEN, "999 FPS")
-	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil, "999 ms")
-	local wm_chip_place, wm_label_place = wm_make_chip(6)
-	local wm_chip_time, wm_label_time = wm_make_chip(7, nil, "00:00:00")
+	local wm_ping_metric = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Position = UDim2.fromOffset(126, 0),
+		RichText = true,
+		Size = UDim2.fromOffset(38, 26),
+		Text = '<b>--</b> <font size="7" color="#B7C0CB">ms</font>',
+		TextColor3 = rgb(243, 241, 245),
+		TextSize = 9,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 5,
+	}, wm_panel)
 
-	wm_refresh_position = function()
-		if wm_position == "TopLeft" then
-			wm_frame.AnchorPoint = Vector2.new(0, 0)
-			wm_frame.Position = UDim2.new(0, 12, 0, 12)
-		else
-			wm_frame.AnchorPoint = Vector2.new(1, 0)
-			wm_frame.Position = UDim2.new(1, -12, 0, 12)
+	wm_apply_style = function(style_name)
+		local style = WM_STYLES[style_name] or WM_STYLES.Blue
+		wm_panel_stroke.Color = style.Accent
+		wm_top_runner.BackgroundColor3 = style.Light
+		wm_bottom_runner.BackgroundColor3 = style.Light
+		wm_left_neon.BackgroundColor3 = style.Light
+		wm_right_neon.BackgroundColor3 = style.Light
+		wm_top_neon.BackgroundColor3 = style.Accent
+		wm_bottom_neon.BackgroundColor3 = style.Accent
+		wm_emblem.TextColor3 = style.Accent
+		wm_emblem_glow.TextColor3 = style.Accent
+		for wave_index, wave in ipairs(wm_wave_dots) do
+			local color = wave_index % 2 == 0 and style.Accent or style.Light
+			for _, point in ipairs(wave) do
+				point.BackgroundColor3 = color
+			end
 		end
 	end
+	wm_apply_style(wm_style)
 
-	local wm_cached_place_name = nil
+	-- Neon motion: side pulse + runner sweeps
+	for _, neon in ipairs({ wm_left_neon, wm_right_neon }) do
+		tween_service:Create(
+			neon,
+			TweenInfo.new(2.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ BackgroundTransparency = 0.42 }
+		):Play()
+	end
+	tween_service:Create(
+		wm_top_runner,
+		TweenInfo.new(3.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false),
+		{ Position = UDim2.fromOffset(164, 0) }
+	):Play()
+	tween_service:Create(
+		wm_bottom_runner,
+		TweenInfo.new(4.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false),
+		{ Position = UDim2.fromOffset(-32, 25) }
+	):Play()
 
-	local function wm_refresh_text()
-		wm_chip_nick.Visible = wm_show.Nickname == true
-		if wm_show.Nickname then
-			wm_label_nick.Text = tostring(lp and lp.DisplayName or "Player")
+	-- Drag
+	do
+		local dragging, drag_input, drag_start, start_position
+		connect(window.connections, wm_panel.InputBegan, function(input)
+			local t = input.UserInputType
+			if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+			dragging = true
+			drag_input = input
+			drag_start = input.Position
+			start_position = wm_root.Position
+		end)
+		insert(window._input_changed_hooks, function(input)
+			if not dragging then return end
+			if input ~= drag_input and input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+			local delta = input.Position - drag_start
+			wm_root.Position = UDim2.fromOffset(
+				start_position.X.Offset + delta.X,
+				start_position.Y.Offset + delta.Y
+			)
+		end)
+		insert(window._input_ended_hooks, function(input)
+			if input == drag_input then
+				dragging = false
+				drag_input = nil
+			end
+		end)
+	end
+
+	-- FPS / ping / wave animation driver
+	local wm_frames, wm_elapsed, wm_ping_elapsed, wm_wave_elapsed = 0, 0, 1, 0
+	local wm_smoothed_fps = 60
+
+	insert(window._renderstep_hooks, function(dt)
+		if not wm_root.Visible then return end
+
+		wm_frames = wm_frames + 1
+		wm_elapsed = wm_elapsed + dt
+		wm_ping_elapsed = wm_ping_elapsed + dt
+		wm_wave_elapsed = wm_wave_elapsed + dt
+
+		if wm_wave_elapsed >= 1 / 30 then
+			local now = os.clock()
+			for wave_index, wave in ipairs(wm_wave_dots) do
+				local center = 5 + wave_index * 5
+				local amplitude = 1.8 + wave_index * 0.5
+				local frequency = 0.24 + wave_index * 0.025
+				local speed = 0.45 + wave_index * 0.11
+				for point_index, point in ipairs(wave) do
+					local x = (point_index - 1) * 3
+					local y = center
+						+ math.sin((point_index - 1) * frequency + now * speed) * amplitude
+						+ math.sin((point_index - 1) * 0.09 - now * 0.28) * 0.65
+					point.Position = UDim2.fromOffset(x, clamp(floor(y + 0.5), 1, 24))
+				end
+			end
+			wm_wave_elapsed = 0
 		end
 
-		wm_chip_fps.Visible = wm_show.FPS == true
-		if wm_show.FPS then
-			wm_label_fps.Text = tostring(wm_fps_value) .. " FPS"
+		if wm_elapsed >= 0.4 then
+			local measured = wm_frames / wm_elapsed
+			wm_smoothed_fps = wm_smoothed_fps + (measured - wm_smoothed_fps) * 0.35
+			wm_fps_metric.Text = string.format('<b>%d</b> <font size="7" color="#B7C0CB">fps</font>', floor(wm_smoothed_fps + 0.5))
+			wm_frames = 0
+			wm_elapsed = 0
 		end
 
-		wm_chip_ping.Visible = wm_show.Ping == true
-		if wm_show.Ping then
-			local ping = 0
+		if wm_ping_elapsed >= 1 then
+			local ping
 			pcall(function()
 				ping = round(stats_service.Network.ServerStatsItem["Data Ping"]:GetValue())
 			end)
-			wm_label_ping.Text = tostring(ping) .. " ms"
+			wm_ping_metric.Text = string.format('<b>%s</b> <font size="7" color="#B7C0CB">ms</font>', ping and tostring(ping) or "--")
+			wm_ping_elapsed = 0
 		end
-
-		wm_chip_place.Visible = wm_show.Place == true
-		if wm_show.Place then
-			if not wm_cached_place_name then
-				wm_cached_place_name = "Unknown"
-				pcall(function()
-					local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
-					if info and info.Name then wm_cached_place_name = info.Name end
-				end)
-			end
-			wm_label_place.Text = wm_cached_place_name
-		end
-
-		wm_chip_time.Visible = wm_show.Time == true
-		if wm_show.Time then
-			wm_label_time.Text = os.date("%H:%M:%S")
-		end
-	end
-
-	insert(window._heartbeat_hooks, function(dt)
-		if not wm_frame.Visible then return end
-		wm_fps_accum = wm_fps_accum + (1 / max(dt, 0.001))
-		wm_fps_count = wm_fps_count + 1
-		wm_fps_timer = wm_fps_timer + dt
-		if wm_fps_timer >= 0.5 then
-			wm_fps_value = round(wm_fps_accum / max(wm_fps_count, 1))
-			wm_fps_accum = 0
-			wm_fps_count = 0
-			wm_fps_timer = 0
-		end
-		wm_refresh_text()
 	end)
 
+	window._wm_gui = wm_gui
+
 	watermark_toggle.on_change(function(active)
-		wm_frame.Visible = active
-		if active then
-			wm_refresh_text()
-		end
+		wm_root.Visible = active
 	end)
 
 	-- ========== KEYBIND LIST OVERLAY ==========
@@ -3784,7 +3758,6 @@ function Library:CreateWindow(options)
 	end
 
 	window._kbl_refresh = kbl_refresh
-	window._wm_gui = wm_gui
 	window._kbl_gui = kbl_gui
 
 	-- List order = activation order: a bind that just turned ON moves to the
@@ -3836,13 +3809,15 @@ function Library:CreateWindow(options)
 		set_watermark = function(v) watermark_toggle.set(v) end,
 		get_keybindlist = function() return keybindlist_toggle.get() end,
 		set_keybindlist = function(v) keybindlist_toggle.set(v) end,
-		get_wm_position = function() return wm_position end,
-		set_wm_position = function(pos)
-			if pos == "TopLeft" or pos == "TopRight" then
-				wm_position = pos
-				wm_pos_index = (pos == "TopLeft") and 2 or 1
-				wm_pos_btn.Text = pos
-				wm_refresh_position()
+		get_wm_style = function() return wm_style end,
+		set_wm_style = function(style)
+			if style == "Black" or style == "Blue" or style == "Purple" then
+				wm_style = style
+				for i, s in ipairs(wm_styles) do
+					if s == style then wm_style_index = i break end
+				end
+				wm_style_btn.Text = style
+				if wm_apply_style then wm_apply_style(style) end
 			end
 		end,
 		-- Keybind panel drag position (offsets only; scale part is the anchor preset)
@@ -3857,32 +3832,6 @@ function Library:CreateWindow(options)
 			if xs and xo and ys and yo then
 				kbl_holder.Position = UDim2.new(xs, xo, ys, yo)
 			end
-		end,
-		get_wm_show = function()
-			local copy = {}
-			for k, v in pairs(wm_show) do copy[k] = v end
-			return copy
-		end,
-		set_wm_show = function(tbl)
-			if type(tbl) ~= "table" then return end
-			for k, v in pairs(tbl) do
-				if wm_show[k] ~= nil then
-					wm_show[k] = v == true
-					local vis = wm_field_visuals[k]
-					if vis then
-						if wm_show[k] then
-							tween(vis.check, 0.15, { BackgroundColor3 = self.theme.accent })
-							tween(vis.stroke, 0.15, { Color = self.theme.accent })
-							tween(vis.tick, 0.15, { ImageTransparency = 0 })
-						else
-							tween(vis.check, 0.15, { BackgroundColor3 = self.theme.bg })
-							tween(vis.stroke, 0.15, { Color = self.theme.line })
-							tween(vis.tick, 0.15, { ImageTransparency = 1 })
-						end
-					end
-				end
-			end
-			wm_update_fields_btn_text()
 		end,
 	}
 
@@ -4085,11 +4034,11 @@ function Window:Destroy()
 	if self.gui then
 		self.gui:Destroy()
 	end
-	if self._wm_gui then
-		self._wm_gui:Destroy()
-	end
 	if self._kbl_gui then
 		self._kbl_gui:Destroy()
+	end
+	if self._wm_gui then
+		self._wm_gui:Destroy()
 	end
 	for index, window in ipairs(self.library.windows) do
 		if window == self then
