@@ -3296,7 +3296,9 @@ function Library:CreateWindow(options)
 		ZIndex = 5,
 	}, wm_frame)
 
-	local function wm_make_chip(order, icon_name, text_color)
+	-- fixed_template: chip width is locked to this widest-case string so live
+	-- values (FPS/ping/time) never resize the chip — the watermark stays static
+	local function wm_make_chip(order, icon_name, text_color, fixed_template)
 		local chip = create("Frame", {
 			Size = UDim2.fromOffset(0, 30),
 			AutomaticSize = Enum.AutomaticSize.X,
@@ -3325,27 +3327,48 @@ function Library:CreateWindow(options)
 			text_x = 30
 		end
 
-		local label = create("TextLabel", {
-			Position = UDim2.fromOffset(text_x, 0),
-			Size = UDim2.new(0, 0, 1, 0),
-			AutomaticSize = Enum.AutomaticSize.X,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			Font = Enum.Font.GothamSemibold,
-			Text = "",
-			TextColor3 = text_color or WM_TEXT,
-			TextSize = 13,
-			ZIndex = 5,
-		}, chip)
-		create("UIPadding", { PaddingRight = UDim.new(0, 10) }, chip)
+		local label
+		if fixed_template then
+			local text_w = 0
+			pcall(function()
+				text_w = text_service:GetTextSize(fixed_template, 13, Enum.Font.GothamSemibold, vec2(9999, 30)).X
+			end)
+			chip.AutomaticSize = Enum.AutomaticSize.None
+			chip.Size = UDim2.fromOffset(text_x + text_w + 10, 30)
+			label = create("TextLabel", {
+				Position = UDim2.fromOffset(text_x, 0),
+				Size = UDim2.new(1, -text_x - 10, 1, 0),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Font = Enum.Font.GothamSemibold,
+				Text = "",
+				TextColor3 = text_color or WM_TEXT,
+				TextSize = 13,
+				ZIndex = 5,
+			}, chip)
+		else
+			label = create("TextLabel", {
+				Position = UDim2.fromOffset(text_x, 0),
+				Size = UDim2.new(0, 0, 1, 0),
+				AutomaticSize = Enum.AutomaticSize.X,
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Font = Enum.Font.GothamSemibold,
+				Text = "",
+				TextColor3 = text_color or WM_TEXT,
+				TextSize = 13,
+				ZIndex = 5,
+			}, chip)
+			create("UIPadding", { PaddingRight = UDim.new(0, 10) }, chip)
+		end
 		return chip, label
 	end
 
 	local wm_chip_nick, wm_label_nick = wm_make_chip(3, "user")
-	local wm_chip_fps, wm_label_fps = wm_make_chip(4, nil, WM_GREEN)
-	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil)
+	local wm_chip_fps, wm_label_fps = wm_make_chip(4, nil, WM_GREEN, "999 FPS ↑")
+	local wm_chip_ping, wm_label_ping = wm_make_chip(5, nil, nil, "999 ms")
 	local wm_chip_place, wm_label_place = wm_make_chip(6, "compass")
-	local wm_chip_time, wm_label_time = wm_make_chip(7, nil)
+	local wm_chip_time, wm_label_time = wm_make_chip(7, nil, nil, "00:00:00")
 
 	wm_refresh_position = function()
 		if wm_position == "TopLeft" then
@@ -5636,11 +5659,13 @@ function Section:AddToggle(options)
 			end
 		end
 
-		if #key_parts > 0 and self.window._kbl_add then
-			-- "[Space + H]" style for multi-key binds, "[F]" for single
-			self.window:_kbl_add(self.name, toggle.bind.mode, concat(key_parts, " + "), state == true)
-		elseif self.window._kbl_remove then
-			self.window:_kbl_remove(self.name)
+		if #key_parts > 0 and toggle.window._kbl_add then
+			-- "[Space + H]" style for multi-key binds, "[F]" for single.
+			-- toggle.name is the feature's Name ("Rapid Fire"), NOT self.name —
+			-- this closure lives in Section:AddToggle where self is the section.
+			toggle.window:_kbl_add(toggle.name, toggle.bind.mode, concat(key_parts, " + "), state == true)
+		elseif toggle.window._kbl_remove then
+			toggle.window:_kbl_remove(toggle.name)
 		end
 	end
 
