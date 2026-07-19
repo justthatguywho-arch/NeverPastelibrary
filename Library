@@ -3498,138 +3498,44 @@ function Library:CreateWindow(options)
 	local KBL_RIM_T = 0.82
 	local kbl_rim = stroke(kbl_frame, rgb(255, 255, 255), 1, 1) -- thin light edge, iOS glass rim
 
-	-- ===== iOS frosted-glass backdrop (acrylic technique) =====
-	-- Plain Glass barely blurs. The trick (used by Acrylic/Fluent UIs): a
-	-- near-invisible Glass part (Transparency 0.98) still WRITES DEPTH, so
-	-- pixels behind it get depth ~= the glass distance (0.5 studs). A
-	-- DepthOfFieldEffect tuned to blur only near-camera depths then blurs
-	-- exactly the region covered by the glass — the rest of the scene sits
-	-- inside the in-focus window and stays sharp. Requires graphics quality
-	-- ~8+; below that Roblox skips glass depth-write and you get plain tint.
-	local kbl_glass = nil
-	local kbl_dof = nil
-	local function kbl_ensure_glass()
-		if kbl_glass and kbl_glass.Parent then return kbl_glass end
-		local ok, part = pcall(function()
-			local p = Instance.new("Part")
-			p.Name = "np_kbl_glass"
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			p.CastShadow = false
-			p.Material = Enum.Material.Glass
-			p.Color = Color3.fromRGB(0, 0, 0)
-			p.Transparency = 0.98
-			p.Reflectance = 0
-			p.Size = Vector3.new(0.1, 0.1, 0.01)
-			return p
-		end)
-		if not ok then return nil end
-		kbl_glass = part
-		return part
-	end
+	-- ===== Frosted-glass look (texture imitation) =====
+	-- The real acrylic trick (Glass part + DepthOfFieldEffect) is off the
+	-- table: ANY DoF in Lighting makes every Glass surface in the scene
+	-- refract a blurred frame — the user's Glass chams went blurry whenever
+	-- the panel was visible. Frost is now faked with a soft noise texture
+	-- inside the panel; nothing is added to Lighting or the 3D scene, so no
+	-- interaction with chams/materials, and it looks the same on low graphics.
+	local kbl_frost = create("ImageLabel", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Image = "rbxassetid://8992230677", -- soft noise/grain
+		ImageColor3 = rgb(255, 255, 255),
+		ImageTransparency = 0.94,
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(128, 128),
+		ZIndex = 3,
+	}, kbl_frame)
+	-- subtle top-light sheen, like light catching frosted glass
+	local kbl_sheen = create("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = rgb(255, 255, 255),
+		BackgroundTransparency = 0.93,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, kbl_frame)
+	round_ui(kbl_sheen, 6)
+	create("UIGradient", {
+		Rotation = 90,
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(0.35, 0.75),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+	}, kbl_sheen)
 
-	-- Near-blur boundary = FocusDistance - InFocusRadius = 0.45 studs: only
-	-- things closer than 0.45 get blurred. The glass sits at 0.25, viewmodel
-	-- arms are farther than 0.45 — with the old 51.6/50 pair the boundary was
-	-- 1.6 studs and first-person arms fell inside it (blurry hands bug).
-	local function kbl_ensure_dof()
-		if kbl_dof and kbl_dof.Parent then return kbl_dof end
-		local ok, effect = pcall(function()
-			local e = Instance.new("DepthOfFieldEffect")
-			e.Name = "np_kbl_acrylic"
-			e.FarIntensity = 0
-			e.FocusDistance = 50.45
-			e.InFocusRadius = 50
-			e.NearIntensity = 0
-			e.Parent = game:GetService("Lighting")
-			return e
-		end)
-		if not ok then return nil end
-		kbl_dof = effect
-		return effect
-	end
-
-	local kbl_cam_conn = nil
-
-	local function kbl_destroy_glass()
-		if kbl_glass then
-			pcall(function() kbl_glass:Destroy() end)
-			kbl_glass = nil
-		end
-		if kbl_dof then
-			pcall(function() kbl_dof:Destroy() end)
-			kbl_dof = nil
-		end
-	end
-	window._kbl_destroy_glass = function()
-		kbl_destroy_glass()
-		if kbl_cam_conn then
-			pcall(function() kbl_cam_conn:Disconnect() end)
-			kbl_cam_conn = nil
-		end
-	end
-
-	-- Fade state for the glass (mirrors GroupTransparency fade)
+	-- Fade state (drives glow + rim, mirrors GroupTransparency fade)
 	local kbl_glass_alpha = 0 -- 0 hidden, 1 fully shown
-
-	-- DoF blur bleeds a few px past the glass edge, so the glass sits INSET
-	-- inside the panel rect — keeps the frost flush with the visible border
-	local KBL_GLASS_INSET = 5
-
-	local function kbl_place_glass()
-		local glass = kbl_glass
-		if not glass then return end
-		local cam = ws.CurrentCamera
-		if not cam then return end
-		if glass.Parent ~= cam then glass.Parent = cam end
-
-		-- Project the panel rect onto a plane DIST studs in front of the camera.
-		-- ScreenPointToRay (NOT ViewportPointToRay): AbsolutePosition lives in
-		-- inset-relative screen space, and only ScreenPointToRay matches it —
-		-- with ViewportPointToRay the blur rect sat one topbar-height too high.
-		-- DIST must stay well inside the DoF near-blur boundary (0.45).
-		local DIST = 0.25
-		local pos = kbl_frame.AbsolutePosition
-		local size = kbl_frame.AbsoluteSize
-		if size.X < 2 or size.Y < 2 then return end
-		local x0 = pos.X + KBL_GLASS_INSET
-		local y0 = pos.Y + KBL_GLASS_INSET
-		local x1 = pos.X + size.X - KBL_GLASS_INSET
-		local y1 = pos.Y + size.Y - KBL_GLASS_INSET
-		if x1 - x0 < 2 or y1 - y0 < 2 then return end
-		local cx = (x0 + x1) * 0.5
-		local cy = (y0 + y1) * 0.5
-		local ray_c = cam:ScreenPointToRay(cx, cy, DIST)
-		local ray_r = cam:ScreenPointToRay(x1, cy, DIST)
-		local ray_l = cam:ScreenPointToRay(x0, cy, DIST)
-		local ray_t = cam:ScreenPointToRay(cx, y0, DIST)
-		local ray_b = cam:ScreenPointToRay(cx, y1, DIST)
-		local w = (ray_r.Origin - ray_l.Origin).Magnitude
-		local h = (ray_t.Origin - ray_b.Origin).Magnitude
-
-		glass.CFrame = CFrame.lookAt(ray_c.Origin, ray_c.Origin + cam.CFrame.LookVector)
-		glass.Size = Vector3.new(w, h, 0.01)
-	end
-
-	-- The game's camera controllers write Camera.CFrame AFTER our renderstep
-	-- hook (event connections fire after bindings — same ordering issue as the
-	-- Resolution Stretch fix). Re-placing on every CFrame write keeps the
-	-- glass welded to the panel instead of trailing a frame behind.
-	local function kbl_bind_camera()
-		if kbl_cam_conn then
-			pcall(function() kbl_cam_conn:Disconnect() end)
-			kbl_cam_conn = nil
-		end
-		local cam = ws.CurrentCamera
-		if not cam then return end
-		kbl_cam_conn = cam:GetPropertyChangedSignal("CFrame"):Connect(function()
-			if kbl_glass then kbl_place_glass() end
-		end)
-	end
-	connect(window.connections, ws:GetPropertyChangedSignal("CurrentCamera"), kbl_bind_camera)
-	kbl_bind_camera()
 
 	insert(window._renderstep_hooks, function(dt)
 		-- Track fade: approach 1 when shown, 0 when hiding (matches 0.25s tween pace)
@@ -3645,18 +3551,6 @@ function Library:CreateWindow(options)
 		-- same for the rim stroke (UIStroke ignores GroupTransparency)
 		kbl_glow.ImageTransparency = 1 - (1 - KBL_GLOW_MIN_T) * kbl_glass_alpha
 		kbl_rim.Transparency = 1 - (1 - KBL_RIM_T) * kbl_glass_alpha
-
-		if kbl_glass_alpha <= 0.01 then
-			kbl_destroy_glass()
-			return
-		end
-
-		if not kbl_ensure_glass() then return end
-		local dof = kbl_ensure_dof()
-		kbl_place_glass()
-		if dof then
-			dof.NearIntensity = kbl_glass_alpha
-		end
 	end)
 
 	local kbl_title = create("TextLabel", {
@@ -4196,9 +4090,6 @@ function Window:Destroy()
 	end
 	if self._kbl_gui then
 		self._kbl_gui:Destroy()
-	end
-	if self._kbl_destroy_glass then
-		self._kbl_destroy_glass()
 	end
 	for index, window in ipairs(self.library.windows) do
 		if window == self then
