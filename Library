@@ -3530,13 +3530,17 @@ function Library:CreateWindow(options)
 		return part
 	end
 
+	-- Near-blur boundary = FocusDistance - InFocusRadius = 0.45 studs: only
+	-- things closer than 0.45 get blurred. The glass sits at 0.25, viewmodel
+	-- arms are farther than 0.45 — with the old 51.6/50 pair the boundary was
+	-- 1.6 studs and first-person arms fell inside it (blurry hands bug).
 	local function kbl_ensure_dof()
 		if kbl_dof and kbl_dof.Parent then return kbl_dof end
 		local ok, effect = pcall(function()
 			local e = Instance.new("DepthOfFieldEffect")
 			e.Name = "np_kbl_acrylic"
 			e.FarIntensity = 0
-			e.FocusDistance = 51.6
+			e.FocusDistance = 50.45
 			e.InFocusRadius = 50
 			e.NearIntensity = 0
 			e.Parent = game:GetService("Lighting")
@@ -3585,7 +3589,8 @@ function Library:CreateWindow(options)
 		-- ScreenPointToRay (NOT ViewportPointToRay): AbsolutePosition lives in
 		-- inset-relative screen space, and only ScreenPointToRay matches it —
 		-- with ViewportPointToRay the blur rect sat one topbar-height too high.
-		local DIST = 0.5
+		-- DIST must stay well inside the DoF near-blur boundary (0.45).
+		local DIST = 0.25
 		local pos = kbl_frame.AbsolutePosition
 		local size = kbl_frame.AbsoluteSize
 		if size.X < 2 or size.Y < 2 then return end
