@@ -1464,14 +1464,15 @@ function Library:CreateWindow(options)
 		ZIndex = 4,
 	}, window.header)
 	create("UIGradient", {
-		-- Yin-yang diagonal: white owns the top-left half, violet owns the
-		-- bottom-right half, meeting in a short blend across the middle
+		-- Smooth diagonal wash: white top-left melting through lilac into
+		-- violet bottom-right — no hard seam, both colors get real estate
 		Rotation = 35,
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.42, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.58, rgb(178, 122, 255)),
-			ColorSequenceKeypoint.new(1, rgb(132, 72, 240)),
+			ColorSequenceKeypoint.new(0.25, rgb(244, 236, 255)),
+			ColorSequenceKeypoint.new(0.5, rgb(214, 178, 255)),
+			ColorSequenceKeypoint.new(0.75, rgb(172, 116, 252)),
+			ColorSequenceKeypoint.new(1, rgb(138, 76, 244)),
 		}),
 	}, window.title)
 
