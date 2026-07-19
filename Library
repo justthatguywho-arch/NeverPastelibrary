@@ -1825,8 +1825,8 @@ function Library:CreateWindow(options)
 		}
 	end
 
-	local watermark_toggle = create_settings_toggle_row("Watermark", false, 1)
-	local keybindlist_toggle = create_settings_toggle_row("Keybind List", false, 2)
+	-- Watermark is always on: no toggle row, not exposed in configs
+	local keybindlist_toggle = create_settings_toggle_row("Keybind List", false, 1)
 
 	-- Watermark Style row (Black / Blue / Purple)
 	local wm_style_row = create("Frame", {
@@ -2514,11 +2514,8 @@ function Library:CreateWindow(options)
 			end
 		end
 
-		-- Restore Settings tab state
+		-- Restore Settings tab state (watermark is always on — not restorable)
 		if window._settings_state then
-			if settings["__np_watermark"] ~= nil then
-				window._settings_state.set_watermark(settings["__np_watermark"])
-			end
 			if settings["__np_keybindlist"] ~= nil then
 				window._settings_state.set_keybindlist(settings["__np_keybindlist"])
 			end
@@ -2595,7 +2592,6 @@ function Library:CreateWindow(options)
 
 		-- Save Settings tab state
 		if self._settings_state then
-			payload.settings["__np_watermark"] = self._settings_state.get_watermark()
 			payload.settings["__np_keybindlist"] = self._settings_state.get_keybindlist()
 			if self._settings_state.get_wm_style then
 				payload.settings["__np_wm_style"] = self._settings_state.get_wm_style()
@@ -3089,15 +3085,18 @@ function Library:CreateWindow(options)
 		},
 	}
 
+	-- Top-right anchored: scale-based position sticks to the corner on ANY
+	-- resolution / window resize; UIScale below multiplies visual size 1.5x
+	-- around the anchor point, so the offset stays resolution-correct
 	local wm_root = create("Frame", {
 		Active = true,
+		AnchorPoint = Vector2.new(1, 0),
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(1, -18, 0, 18),
 		Size = UDim2.fromOffset(164, 30),
-		Visible = false,
 	}, wm_gui)
 
-	create("UIScale", { Scale = 1.2 }, wm_root)
+	create("UIScale", { Scale = 1.5 }, wm_root)
 
 	local wm_shadow = create("Frame", {
 		BackgroundColor3 = rgb(0, 0, 0),
@@ -3337,9 +3336,10 @@ function Library:CreateWindow(options)
 			if not dragging then return end
 			if input ~= drag_input and input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 			local delta = input.Position - drag_start
-			wm_root.Position = UDim2.fromOffset(
-				start_position.X.Offset + delta.X,
-				start_position.Y.Offset + delta.Y
+			-- keep scale components: root is corner-anchored (Position uses scale 1 on X)
+			wm_root.Position = UDim2.new(
+				start_position.X.Scale, start_position.X.Offset + delta.X,
+				start_position.Y.Scale, start_position.Y.Offset + delta.Y
 			)
 		end)
 		insert(window._input_ended_hooks, function(input)
@@ -3400,9 +3400,7 @@ function Library:CreateWindow(options)
 
 	window._wm_gui = wm_gui
 
-	watermark_toggle.on_change(function(active)
-		wm_root.Visible = active
-	end)
+	-- Watermark is permanent: visible from creation, no toggle, no config key
 
 	-- ========== KEYBIND LIST OVERLAY ==========
 	local kbl_gui = create("ScreenGui", {
@@ -3805,8 +3803,6 @@ function Library:CreateWindow(options)
 
 	-- ========== SETTINGS STATE API ==========
 	window._settings_state = {
-		get_watermark = function() return watermark_toggle.get() end,
-		set_watermark = function(v) watermark_toggle.set(v) end,
 		get_keybindlist = function() return keybindlist_toggle.get() end,
 		set_keybindlist = function(v) keybindlist_toggle.set(v) end,
 		get_wm_style = function() return wm_style end,
