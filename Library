@@ -3453,57 +3453,57 @@ function Library:CreateWindow(options)
 	window._active_binds = {}
 	window._kbl_rows = {}
 
-	-- Same purple palette as the watermark (reference mock)
-	local KBL_PANEL = rgb(24, 16, 34)
-	local KBL_CHIP = rgb(14, 9, 21)
-	local KBL_STROKE = rgb(126, 87, 194)
-	local KBL_TEXT = rgb(240, 236, 250)
-	local KBL_ACTIVE = rgb(126, 87, 194)
-	local KBL_TITLE = rgb(206, 178, 255)
-	local KBL_W = 250
-	local KBL_HEADER_H = 40
-	local KBL_ROW_H = 30
-	local KBL_ROW_PAD = 8
+	-- Dark + pink palette per reference mock
+	local KBL_PANEL = rgb(31, 28, 34)
+	local KBL_ACCENT = rgb(226, 73, 168)
+	local KBL_TEXT = rgb(245, 243, 247)
+	local KBL_W = 200
+	local KBL_HEADER_H = 32
+	local KBL_ROW_H = 26
+	local KBL_ROW_PAD = 4
 
-	local kbl_frame = create("Frame", {
+	local kbl_master = false -- settings toggle state
+	local kbl_shown = false  -- currently faded in
+
+	-- CanvasGroup so the whole panel fades as one via GroupTransparency
+	local kbl_frame = create("CanvasGroup", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 70),
 		Size = UDim2.fromOffset(KBL_W, KBL_HEADER_H),
 		BackgroundColor3 = KBL_PANEL,
-		BackgroundTransparency = 0.04,
+		BackgroundTransparency = 0.05,
+		GroupTransparency = 1,
 		BorderSizePixel = 0,
 		Visible = false,
 		ClipsDescendants = true,
 		ZIndex = 2,
 	}, kbl_gui)
-	round_ui(kbl_frame, 10)
-	stroke(kbl_frame, KBL_STROKE, 0.35, 1)
-
-	local kbl_title_icon = create("ImageLabel", {
-		Position = UDim2.fromOffset(12, 11),
-		Size = UDim2.fromOffset(18, 18),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Image = resolve_icon("terminal") or "",
-		ImageColor3 = KBL_TITLE,
-		ZIndex = 4,
-	}, kbl_frame)
+	round_ui(kbl_frame, 8)
 
 	local kbl_title = create("TextLabel", {
-		Position = UDim2.fromOffset(38, 0),
-		Size = UDim2.new(1, -46, 0, KBL_HEADER_H),
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0, KBL_HEADER_H),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Font = Enum.Font.GothamBold,
 		Text = "KEYBINDS",
-		TextSize = 15,
-		TextColor3 = KBL_TITLE,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 13,
+		TextColor3 = KBL_TEXT,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		ZIndex = 4,
 	}, kbl_frame)
 
+	local kbl_underline = create("Frame", {
+		Position = UDim2.new(0, 8, 0, KBL_HEADER_H),
+		Size = UDim2.new(1, -16, 0, 2),
+		BackgroundColor3 = KBL_ACCENT,
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, kbl_frame)
+	round_ui(kbl_underline, 1)
+
 	local kbl_body = create("Frame", {
-		Position = UDim2.fromOffset(10, KBL_HEADER_H),
+		Position = UDim2.fromOffset(10, KBL_HEADER_H + 8),
 		Size = UDim2.new(1, -20, 0, 0),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -3541,6 +3541,25 @@ function Library:CreateWindow(options)
 		end
 	end)
 
+	-- Fade the whole panel in/out; Visible flips only after the fade-out ends
+	local function kbl_set_shown(shown)
+		if kbl_shown == shown then return end
+		kbl_shown = shown
+		if shown then
+			kbl_frame.Visible = true
+			tween(kbl_frame, 0.25, { GroupTransparency = 0 })
+		else
+			local fade = tween_object(kbl_frame, 0.25, { GroupTransparency = 1 })
+			if fade then
+				connect(window.connections, fade.Completed, function()
+					if not kbl_shown then kbl_frame.Visible = false end
+				end)
+			else
+				kbl_frame.Visible = false
+			end
+		end
+	end
+
 	local function kbl_refresh()
 		for _, row in ipairs(window._kbl_rows) do
 			if row.frame and row.frame.Parent then
@@ -3549,75 +3568,73 @@ function Library:CreateWindow(options)
 		end
 		table.clear(window._kbl_rows)
 
-		local active = window._active_binds
+		-- Only binds whose feature is currently ON are listed (per mock)
 		local count = 0
-		for _, entry in ipairs(active) do
-			count = count + 1
-			local row = create("Frame", {
-				Size = UDim2.new(1, 0, 0, KBL_ROW_H),
-				BackgroundColor3 = KBL_CHIP,
-				BackgroundTransparency = 0.08,
-				BorderSizePixel = 0,
-				LayoutOrder = count,
-				ZIndex = 4,
-			}, kbl_body)
-			round_ui(row, 8)
+		for _, entry in ipairs(window._active_binds) do
+			if entry.active then
+				count = count + 1
+				local row = create("Frame", {
+					Size = UDim2.new(1, 0, 0, KBL_ROW_H),
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					LayoutOrder = count,
+					ZIndex = 4,
+				}, kbl_body)
 
-			local name_label = create("TextLabel", {
-				Position = UDim2.fromOffset(10, 0),
-				Size = UDim2.new(0.55, -10, 1, 0),
-				BackgroundTransparency = 1,
-				Font = Enum.Font.GothamMedium,
-				Text = "[" .. entry.name .. "]",
-				TextSize = 13,
-				TextColor3 = KBL_TEXT,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				ZIndex = 5,
-			}, row)
+				local name_label = create("TextLabel", {
+					Position = UDim2.fromOffset(2, 0),
+					Size = UDim2.new(1, -74, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamMedium,
+					Text = entry.name,
+					TextSize = 13,
+					TextColor3 = KBL_TEXT,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+					ZIndex = 5,
+				}, row)
 
-			local key_chip = create("Frame", {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -5, 0.5, 0),
-				Size = UDim2.fromOffset(0, KBL_ROW_H - 8),
-				AutomaticSize = Enum.AutomaticSize.X,
-				BackgroundColor3 = entry.active and KBL_ACTIVE or KBL_PANEL,
-				BackgroundTransparency = entry.active and 0 or 0.1,
-				BorderSizePixel = 0,
-				ZIndex = 5,
-			}, row)
-			round_ui(key_chip, 6)
-			stroke(key_chip, entry.active and rgb(168, 130, 255) or KBL_STROKE, entry.active and 0.15 or 0.55, 1)
+				local badge_text = entry.mode == "hold" and "Holding" or "Toggled"
+				local badge = create("Frame", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -2, 0.5, 0),
+					Size = UDim2.fromOffset(0, KBL_ROW_H - 6),
+					AutomaticSize = Enum.AutomaticSize.X,
+					BackgroundColor3 = KBL_ACCENT,
+					BorderSizePixel = 0,
+					ZIndex = 5,
+				}, row)
+				round_ui(badge, 5)
 
-			local key_label = create("TextLabel", {
-				Size = UDim2.new(0, 0, 1, 0),
-				AutomaticSize = Enum.AutomaticSize.X,
-				BackgroundTransparency = 1,
-				Font = Enum.Font.GothamSemibold,
-				Text = "[" .. tostring(entry.key or entry.mode) .. "]",
-				TextSize = 12,
-				TextColor3 = entry.active and rgb(255, 255, 255) or KBL_TEXT,
-				ZIndex = 6,
-			}, key_chip)
-			create("UIPadding", {
-				PaddingLeft = UDim.new(0, 7),
-				PaddingRight = UDim.new(0, 7),
-			}, key_chip)
+				create("TextLabel", {
+					Size = UDim2.new(0, 0, 1, 0),
+					AutomaticSize = Enum.AutomaticSize.X,
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamSemibold,
+					Text = badge_text,
+					TextSize = 11,
+					TextColor3 = rgb(255, 255, 255),
+					ZIndex = 6,
+				}, badge)
+				create("UIPadding", {
+					PaddingLeft = UDim.new(0, 8),
+					PaddingRight = UDim.new(0, 8),
+				}, badge)
 
-			-- Animate in
-			row.BackgroundTransparency = 1
-			name_label.TextTransparency = 1
-			key_label.TextTransparency = 1
-			tween(row, 0.2, { BackgroundTransparency = 0.08 })
-			tween(name_label, 0.2, { TextTransparency = 0 })
-			tween(key_label, 0.2, { TextTransparency = 0 })
-
-			insert(window._kbl_rows, { frame = row })
+				insert(window._kbl_rows, { frame = row })
+			end
 		end
 
-		local total_height = KBL_HEADER_H + (count > 0 and (count * (KBL_ROW_H + KBL_ROW_PAD)) + 4 or 8)
-		tween(kbl_frame, 0.2, { Size = UDim2.fromOffset(KBL_W, total_height) })
+		local total_height = KBL_HEADER_H + 8 + (count > 0 and (count * (KBL_ROW_H + KBL_ROW_PAD)) + 4 or 0)
 		kbl_body.Size = UDim2.new(1, -20, 0, count * (KBL_ROW_H + KBL_ROW_PAD))
+		if count > 0 then
+			tween(kbl_frame, 0.2, { Size = UDim2.fromOffset(KBL_W, total_height) })
+		else
+			kbl_frame.Size = UDim2.fromOffset(KBL_W, total_height)
+		end
+
+		-- Auto-hide when nothing is active, fade back in on first active bind
+		kbl_set_shown(kbl_master and count > 0)
 	end
 
 	window._kbl_refresh = kbl_refresh
@@ -3630,12 +3647,12 @@ function Library:CreateWindow(options)
 				entry.mode = mode
 				entry.key = key
 				entry.active = is_active == true
-				if kbl_frame.Visible then kbl_refresh() end
+				if kbl_master then kbl_refresh() end
 				return
 			end
 		end
 		insert(self._active_binds, { name = name, mode = mode, key = key, active = is_active == true })
-		if kbl_frame.Visible then kbl_refresh() end
+		if kbl_master then kbl_refresh() end
 	end
 
 	function window:_kbl_remove(name)
@@ -3645,12 +3662,12 @@ function Library:CreateWindow(options)
 				break
 			end
 		end
-		if kbl_frame.Visible then kbl_refresh() end
+		if kbl_master then kbl_refresh() end
 	end
 
 	keybindlist_toggle.on_change(function(active)
-		kbl_frame.Visible = active
-		if active then kbl_refresh() end
+		kbl_master = active
+		kbl_refresh()
 	end)
 
 	-- ========== SETTINGS STATE API ==========
