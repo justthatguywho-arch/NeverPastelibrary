@@ -3538,6 +3538,8 @@ function Library:CreateWindow(options)
 		return effect
 	end
 
+	local kbl_cam_conn = nil
+
 	local function kbl_destroy_glass()
 		if kbl_glass then
 			pcall(function() kbl_glass:Destroy() end)
@@ -3548,10 +3550,72 @@ function Library:CreateWindow(options)
 			kbl_dof = nil
 		end
 	end
-	window._kbl_destroy_glass = kbl_destroy_glass
+	window._kbl_destroy_glass = function()
+		kbl_destroy_glass()
+		if kbl_cam_conn then
+			pcall(function() kbl_cam_conn:Disconnect() end)
+			kbl_cam_conn = nil
+		end
+	end
 
 	-- Fade state for the glass (mirrors GroupTransparency fade)
 	local kbl_glass_alpha = 0 -- 0 hidden, 1 fully shown
+
+	-- DoF blur bleeds a few px past the glass edge, so the glass sits INSET
+	-- inside the panel rect — keeps the frost flush with the visible border
+	local KBL_GLASS_INSET = 5
+
+	local function kbl_place_glass()
+		local glass = kbl_glass
+		if not glass then return end
+		local cam = ws.CurrentCamera
+		if not cam then return end
+		if glass.Parent ~= cam then glass.Parent = cam end
+
+		-- Project the panel rect onto a plane DIST studs in front of the camera.
+		-- ScreenPointToRay (NOT ViewportPointToRay): AbsolutePosition lives in
+		-- inset-relative screen space, and only ScreenPointToRay matches it —
+		-- with ViewportPointToRay the blur rect sat one topbar-height too high.
+		local DIST = 0.5
+		local pos = kbl_frame.AbsolutePosition
+		local size = kbl_frame.AbsoluteSize
+		if size.X < 2 or size.Y < 2 then return end
+		local x0 = pos.X + KBL_GLASS_INSET
+		local y0 = pos.Y + KBL_GLASS_INSET
+		local x1 = pos.X + size.X - KBL_GLASS_INSET
+		local y1 = pos.Y + size.Y - KBL_GLASS_INSET
+		if x1 - x0 < 2 or y1 - y0 < 2 then return end
+		local cx = (x0 + x1) * 0.5
+		local cy = (y0 + y1) * 0.5
+		local ray_c = cam:ScreenPointToRay(cx, cy, DIST)
+		local ray_r = cam:ScreenPointToRay(x1, cy, DIST)
+		local ray_l = cam:ScreenPointToRay(x0, cy, DIST)
+		local ray_t = cam:ScreenPointToRay(cx, y0, DIST)
+		local ray_b = cam:ScreenPointToRay(cx, y1, DIST)
+		local w = (ray_r.Origin - ray_l.Origin).Magnitude
+		local h = (ray_t.Origin - ray_b.Origin).Magnitude
+
+		glass.CFrame = CFrame.lookAt(ray_c.Origin, ray_c.Origin + cam.CFrame.LookVector)
+		glass.Size = Vector3.new(w, h, 0.01)
+	end
+
+	-- The game's camera controllers write Camera.CFrame AFTER our renderstep
+	-- hook (event connections fire after bindings — same ordering issue as the
+	-- Resolution Stretch fix). Re-placing on every CFrame write keeps the
+	-- glass welded to the panel instead of trailing a frame behind.
+	local function kbl_bind_camera()
+		if kbl_cam_conn then
+			pcall(function() kbl_cam_conn:Disconnect() end)
+			kbl_cam_conn = nil
+		end
+		local cam = ws.CurrentCamera
+		if not cam then return end
+		kbl_cam_conn = cam:GetPropertyChangedSignal("CFrame"):Connect(function()
+			if kbl_glass then kbl_place_glass() end
+		end)
+	end
+	connect(window.connections, ws:GetPropertyChangedSignal("CurrentCamera"), kbl_bind_camera)
+	kbl_bind_camera()
 
 	insert(window._renderstep_hooks, function(dt)
 		-- Track fade: approach 1 when shown, 0 when hiding (matches 0.25s tween pace)
@@ -3571,33 +3635,9 @@ function Library:CreateWindow(options)
 			return
 		end
 
-		local cam = ws.CurrentCamera
-		if not cam then return end
-		local glass = kbl_ensure_glass()
-		if not glass then return end
-		if glass.Parent ~= cam then glass.Parent = cam end
+		if not kbl_ensure_glass() then return end
 		local dof = kbl_ensure_dof()
-
-		-- Project the panel rect onto a plane DIST studs in front of the camera.
-		-- ScreenPointToRay (NOT ViewportPointToRay): AbsolutePosition lives in
-		-- inset-relative screen space, and only ScreenPointToRay matches it —
-		-- with ViewportPointToRay the blur rect sat one topbar-height too high.
-		local DIST = 0.5
-		local pos = kbl_frame.AbsolutePosition
-		local size = kbl_frame.AbsoluteSize
-		if size.X < 2 or size.Y < 2 then return end
-		local cx = pos.X + size.X * 0.5
-		local cy = pos.Y + size.Y * 0.5
-		local ray_c = cam:ScreenPointToRay(cx, cy, DIST)
-		local ray_r = cam:ScreenPointToRay(pos.X + size.X, cy, DIST)
-		local ray_l = cam:ScreenPointToRay(pos.X, cy, DIST)
-		local ray_t = cam:ScreenPointToRay(cx, pos.Y, DIST)
-		local ray_b = cam:ScreenPointToRay(cx, pos.Y + size.Y, DIST)
-		local w = (ray_r.Origin - ray_l.Origin).Magnitude
-		local h = (ray_t.Origin - ray_b.Origin).Magnitude
-
-		glass.CFrame = CFrame.lookAt(ray_c.Origin, ray_c.Origin + cam.CFrame.LookVector)
-		glass.Size = Vector3.new(w, h, 0.01)
+		kbl_place_glass()
 		if dof then
 			dof.NearIntensity = kbl_glass_alpha
 		end
@@ -3693,11 +3733,15 @@ function Library:CreateWindow(options)
 			row.frame:Destroy()
 			return
 		end
+		-- Fade content AND collapse the row height: UIListLayout reflows every
+		-- frame of the tween, so the rows below glide up instead of snapping
+		row.frame.ClipsDescendants = true
 		tween(row.badge, 0.18, { BackgroundTransparency = 1 })
 		tween(row.badge_label, 0.18, { TextTransparency = 1 })
-		local fade = tween_object(row.name_label, 0.18, { TextTransparency = 1 })
-		if fade then
-			connect(window.connections, fade.Completed, function()
+		tween(row.name_label, 0.18, { TextTransparency = 1 })
+		local collapse = tween_object(row.frame, 0.18, { Size = UDim2.new(1, 0, 0, 0) })
+		if collapse then
+			connect(window.connections, collapse.Completed, function()
 				if row.frame and row.frame.Parent then row.frame:Destroy() end
 			end)
 		else
