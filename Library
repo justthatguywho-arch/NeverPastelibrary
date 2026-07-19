@@ -1452,6 +1452,20 @@ function Library:CreateWindow(options)
 	-- Title in the OXY watermark style: heavy black font, white→lilac→violet
 	-- diagonal gradient, thin vertical divider after it (replaces the old
 	-- accent-stroked GothamBold look)
+	-- Neon under-glow: blurred copy of the title text sitting behind it
+	local title_neon = create("TextLabel", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 2),
+		Size = UDim2.fromOffset(130, 40),
+		Font = Enum.Font.GothamBlack,
+		Text = options.Title or "Menu",
+		TextSize = 21,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = rgb(168, 108, 255),
+		TextTransparency = 0.55,
+		ZIndex = 3,
+	}, window.header)
+
 	window.title = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(10, 0),
@@ -1463,18 +1477,27 @@ function Library:CreateWindow(options)
 		TextColor3 = rgb(255, 255, 255),
 		ZIndex = 4,
 	}, window.header)
-	create("UIGradient", {
-		-- Smooth diagonal wash: white top-left melting through lilac into
-		-- violet bottom-right — no hard seam, both colors get real estate
+	-- 80% violet/lilac, 20% white: white lives only in the first fifth of the
+	-- diagonal, the rest is a lilac→violet body. Offset is animated below for
+	-- a slow shimmer sweep.
+	local title_gradient = create("UIGradient", {
 		Rotation = 35,
 		Color = ColorSequence.new({
 			ColorSequenceKeypoint.new(0, rgb(255, 255, 255)),
-			ColorSequenceKeypoint.new(0.25, rgb(244, 236, 255)),
-			ColorSequenceKeypoint.new(0.5, rgb(214, 178, 255)),
-			ColorSequenceKeypoint.new(0.75, rgb(172, 116, 252)),
-			ColorSequenceKeypoint.new(1, rgb(138, 76, 244)),
+			ColorSequenceKeypoint.new(0.2, rgb(224, 196, 255)),
+			ColorSequenceKeypoint.new(0.5, rgb(190, 140, 255)),
+			ColorSequenceKeypoint.new(0.78, rgb(164, 104, 250)),
+			ColorSequenceKeypoint.new(1, rgb(140, 78, 244)),
 		}),
 	}, window.title)
+
+	-- Shimmer: slide the gradient window back and forth so the white highlight
+	-- travels across the letters; neon glow breathes in counter-phase
+	insert(window._renderstep_hooks, function()
+		local t = os.clock()
+		title_gradient.Offset = Vector2.new(math.sin(t * 0.8) * 0.25, 0)
+		title_neon.TextTransparency = 0.5 + math.sin(t * 1.6) * 0.12
+	end)
 
 	window.tab_bar = create("Frame", {
 		BackgroundTransparency = 1,
@@ -3227,10 +3250,10 @@ function Library:CreateWindow(options)
 	local wm_emblem_glow = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(-1, 0),
+		Position = UDim2.fromOffset(2, 0),
 		Rotation = -6,
-		Size = UDim2.fromOffset(24, 26),
-		Text = "O",
+		Size = UDim2.fromOffset(34, 26),
+		Text = "Oxy",
 		TextSize = 16,
 		TextTransparency = 0.62,
 		ZIndex = 4,
@@ -3239,10 +3262,10 @@ function Library:CreateWindow(options)
 	local wm_emblem = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(-1, 0),
+		Position = UDim2.fromOffset(2, 0),
 		Rotation = -6,
-		Size = UDim2.fromOffset(24, 26),
-		Text = "O",
+		Size = UDim2.fromOffset(34, 26),
+		Text = "Oxy",
 		TextSize = 14,
 		ZIndex = 5,
 	}, wm_panel)
@@ -3250,8 +3273,8 @@ function Library:CreateWindow(options)
 	create("TextLabel", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(30, 0),
-		Size = UDim2.fromOffset(58, 26),
+		Position = UDim2.fromOffset(42, 0),
+		Size = UDim2.fromOffset(48, 26),
 		Text = tostring(lp and lp.DisplayName or "Player"),
 		TextColor3 = rgb(243, 241, 245),
 		TextSize = 9,
@@ -3263,9 +3286,9 @@ function Library:CreateWindow(options)
 	local wm_fps_metric = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(90, 0),
+		Position = UDim2.fromOffset(94, 0),
 		RichText = true,
-		Size = UDim2.fromOffset(36, 26),
+		Size = UDim2.fromOffset(34, 26),
 		Text = '<b>--</b> <font size="7" color="#B7C0CB">fps</font>',
 		TextColor3 = rgb(243, 241, 245),
 		TextSize = 9,
@@ -3276,9 +3299,9 @@ function Library:CreateWindow(options)
 	local wm_ping_metric = create("TextLabel", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(126, 0),
+		Position = UDim2.fromOffset(128, 0),
 		RichText = true,
-		Size = UDim2.fromOffset(38, 26),
+		Size = UDim2.fromOffset(34, 26),
 		Text = '<b>--</b> <font size="7" color="#B7C0CB">ms</font>',
 		TextColor3 = rgb(243, 241, 245),
 		TextSize = 9,
